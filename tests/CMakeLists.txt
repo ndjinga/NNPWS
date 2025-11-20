@@ -1,76 +1,14 @@
-INCLUDE(${SWIG_USE_FILE})
+set(MY_TEST_SOURCES ./test.c )
 
-######################################
-# setup has been done in project level, just do it again
-######################################
+# build test main exe
+add_executable(NNPWS_test ${MY_TEST_SOURCES})
+target_link_libraries(NNPWS_test NNPWSLib )
 
-# cross OS setup
-IF(WIN32)
-   # windows
-   SET(PY_EXTENSION "pyd")
-ELSE(WIN32)
-   SET(PY_EXTENSION "so")
-ENDIF(WIN32)
+add_test(NAME NNPWS_test  COMMAND "./NNPWS_test")  
+install(TARGETS NNPWS_test DESTINATION test)
 
-# DO NOT use relative include path within *.i file, but add the include_path
-include_directories(${MY_HEADER_DIR} ${PYTHON_INCLUDE_DIRS})
 
-set(MY_MODULE "freesteam")  # it is possible to use the same name as sharedlib name
-set(MY_SHARED_LIB "freesteam")
-set(MY_SWIG_INTERFACE "freesteam.i")
-
-######################################
-# swig build
-######################################
-file(COPY freesteam.i DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_BINARY_DIR}/freesteam.i PROPERTIES SWIG_DEFINITIONS "-shadow")
-
-if(${CMAKE_VERSION} VERSION_GREATER "3.8.0") 
-  SWIG_ADD_LIBRARY(freesteam TYPE SHARED LANGUAGE python SOURCES ${CMAKE_CURRENT_BINARY_DIR}/freesteam.i)
-else(${CMAKE_VERSION} VERSION_GREATER "3.8.0")  # this section is not tested
-  swig_add_module(${MY_MODULE}   python    ${MY_SWIG_INTERFACE}   )
-endif(${CMAKE_VERSION} VERSION_GREATER "3.8.0")
-
-SWIG_LINK_LIBRARIES(freesteam ${PYTHON_LIBRARIES}  freesteamCPP ${GSL_LIBRARIES} )
-
-INSTALL(TARGETS _freesteam DESTINATION lib/freesteam)
-INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/freesteam.py DESTINATION bin/freesteam)
-
-file(COPY ${PROJECT_SOURCE_DIR}/python/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR} FILES_MATCHING PATTERN "*.py")
-
-add_test(NAME freesteam_pytest COMMAND ${PYTHON_EXECUTABLE} ./test.py)  
-set_property(TEST freesteam_pytest PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST freesteam_pytest PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME hs-diagram COMMAND ${PYTHON_EXECUTABLE} ./hsdiagram.py)  
-set_property(TEST hs-diagram PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST hs-diagram PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME pT-diagram COMMAND ${PYTHON_EXECUTABLE} ./pTdiagram.py)  
-set_property(TEST pT-diagram PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST pT-diagram PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME Th-diagram COMMAND ${PYTHON_EXECUTABLE} ./Thdiagram.py)  
-set_property(TEST Th-diagram PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST Th-diagram PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME rhoT-diagram COMMAND ${PYTHON_EXECUTABLE} ./rhoTdiagram.py)  
-set_property(TEST rhoT-diagram PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST rhoT-diagram PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME TsP-3D COMMAND ${PYTHON_EXECUTABLE} ./tsp3d.py)  
-set_property(TEST TsP-3D PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST TsP-3D PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME satCurve COMMAND ${PYTHON_EXECUTABLE} ./satcurve.py)  
-set_property(TEST satCurve PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST satCurve PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME tables COMMAND ${PYTHON_EXECUTABLE} ./tables.py)  
-set_property(TEST tables PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST tables PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
-
-add_test(NAME thermalCond COMMAND ${PYTHON_EXECUTABLE} ./thcond.py)  
-set_property(TEST thermalCond PROPERTY ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${LD_LIBRARY_PATH}")
-set_property(TEST thermalCond PROPERTY ENVIRONMENT      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_BINARY_DIR}:${PYTHONPATH}")
+if(   NNPWS_WITH_PYTHON )
+  add_subdirectory(python)
+endif(NNPWS_WITH_PYTHON )
 
