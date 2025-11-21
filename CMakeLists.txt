@@ -22,7 +22,7 @@ src
 add_library(NNPWSLib SHARED ${MY_SOURCES})
 target_include_directories(NNPWSLib PRIVATE ${MY_HEADERS})
 install(TARGETS NNPWSLib DESTINATION lib)
-install(FILES ${MY_HEADERS} DESTINATION include)
+install(FILES PROJECT_SOURCE_DIR/src/NNPWS.hxx DESTINATION include) #
 
 
 if( NNPWS_WITH_PYTHON )
