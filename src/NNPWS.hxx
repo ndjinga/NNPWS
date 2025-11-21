@@ -25,33 +25,32 @@
 using std::istringstream ;
 using std::ostringstream ;
 
-#include "Language/API/RegisterType.hxx"
-#include "Language/API/Types_Info.hxx"
-#include "system/arch.h"
+
+#include <typeinfo>
+#include <string>
+
 
   //! NNPWS class
-  class NNPWS : public EOS_Fluid
+  class NNPWS 
   {
-    static const string TMStr    ;
-    static const string MVStr    ;
 
   public:
     //! Constructor method
     NNPWS();
 
-//    //! Copy constructor, which should not be used
-//    NNPWS(const NNPWS&);
+    //! Copy constructor
+    NNPWS(const NNPWS&);
 
     //! Destructor method
     ~NNPWS();
 
+    //! for initialisation (memory allocations) :
+    int init();
+    
     //! Getter methods
     const string& table_name()   const ;
     const string& version_name() const ;
     const string& phase_name()   const ;
-
-    //! for initialisation :
-    //
     const string& fluid_name() const;
     const string& equation_name() const;
 
@@ -217,7 +216,7 @@ using std::ostringstream ;
     //! see Language
     istream& read_On (istream& stream=cin);
     //! see Language
-    const Type_Info& get_Type_Info () const;
+    const type_info& get_Type_Info () const;
 
     //Error metod
     void describe_error(const EOS_Internal_Error error, string & description) const;
