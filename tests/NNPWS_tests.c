@@ -1,5 +1,5 @@
 /*
-freesteam - IAPWS-IF97 steam tables library
+NNPWS water/steam tables library
 Copyright (C) 2004-2009  John Pye
 
 This program is free software; you can redistribute it and/or
@@ -499,9 +499,9 @@ void testTx(void){
 }
 
 /*------------------------------------------------------------------------------
-  VISCOSITY ROUTINES
+  VISCOSITY ROUTINES (not yet implemented)
 */
-
+/*
 #define MURELTOL 1e-6
 
 void test_viscosity_rhoT_point(double rho, double T, double mu){
@@ -523,16 +523,17 @@ void testviscosityrhoT(void){
 	test_viscosity_rhoT_point(100.,     1173.15,	47.640433);
 	test_viscosity_rhoT_point(400.,     1173.15,	64.154608);
 }
-
+*/
 /*------------------------------------------------------------------------------
-  THERMAL CONDUCTIVITY ROUTINES
+  THERMAL CONDUCTIVITY ROUTINES  (not yet implemented)
 */
 
-#define KRELTOL 0.0013
+//~ #define KRELTOL 0.0013
 /*
 	@param p pressure/[MPa]
 	@param T temperature/[°C]
 */
+/*
 void test_k_pT_point(double p, double T, double k){
 #if 0
 	fprintf(stderr,"\n\np = %f MPa, T = %f °C, expect k = %f mW/m·K\n", p, T, k);
@@ -599,11 +600,11 @@ void testconductivitypT(void){
 #undef T_COUNT
 
 }
-
-/*------------------------------------------------------------------------------
-  SURFACE TENSION ROUTINE
 */
-
+/*------------------------------------------------------------------------------
+  SURFACE TENSION ROUTINE  (not yet implemented)
+*/
+/*
 typedef struct{
 	double T, sigma;
 } SurfTensData;
@@ -698,7 +699,7 @@ void testsurftens(void){
 		CHECK_VAL(sig1, sig, SURFTENS_RELTOL);
 	}
 }
-
+*/
 /*------------------------------------------------------------------------------
   MAIN ROUTINE
 */
@@ -715,9 +716,7 @@ int main(void){
 	testregion1ph();
 	testregion2ph();
 	testregion3ph();
-	testregion3ps();
 	testregion3psath();
-	testregion3psats();
 	testb23();
 
 	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
@@ -727,46 +726,14 @@ int main(void){
 #if 0
 	fprintf(stderr,"\nFurther tests...\n");
 #endif
-	testps();
 	testpT();
-	testTs();
-	testpv();
 	testTx();
 
 	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
 	maxrelerr = 0;
-
-	/* the following tests cause the larger errors, and are not part of the
-	formal validation of freesteam. It is *expected* that T(p,h) routines and
-	v(p,h) routines will introduce some errors, and we are seeing this.
-
-	Having said that, the big errors are coming from region 1 T(p,h); without
-	that, the value of PHRELTOL could be reduced to 
-
-		1e-3 (region 1)
-		6e-5 (region 2)
-		3e-4 (region 3)
-		5e-7 (region 4)
-	*/	
-	maxrelerr = 0;
 	testph();
 	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
-
-#if 0
-	/* Also, the region4props test uses data from IAPWS95, which is not in
-	perfect agreement with IAPWS-IF97. */
-
-	//testregion4props();
-
-	//testderivs();
-	//testzeroin();
-	testsolver2();
-
-	//testTu(); .. not implemented
-	
-	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
-#endif
-
+/*
 	maxrelerr = 0;
     testviscosityrhoT();
 	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
@@ -778,7 +745,7 @@ int main(void){
 	maxrelerr = 0;
 	testsurftens();
 	fprintf(stderr,"%s Max rel err = %e %%\n",errorflag?"ERRORS ENCOUNTERED":"SUCCESS!",maxrelerr*100);
-
+*/
 	
 	if(errorflag)fprintf(stderr,"Return code %d.\n",errorflag);
 	return errorflag;

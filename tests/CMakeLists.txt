@@ -1,4 +1,4 @@
-set(MY_TEST_SOURCES ./test.c )
+set(MY_TEST_SOURCES ./NNPWS_tests.c )
 
 # build test main exe
 add_executable(NNPWS_test ${MY_TEST_SOURCES})
