@@ -1,6 +1,6 @@
 ## NNPWS
 
-This project provides a class implementing the [IAPWS-97](https://iapws.org/documents/release/IF97-Rev) functions using neural networks instead of polynomials.
+This project provides a C++/Python class implementing the [IAPWS-97](https://iapws.org/documents/release/IF97-Rev) standard for water and steam using neural networks instead of polynomials.
 
 ## Introduction
 
@@ -16,9 +16,10 @@ We also  provide error and computational time estimates.
 git clone https://github.com/ndjinga/NNPWS NNPWS_SRC
 mkdir build
 cd build
-cmake ../NNPWS_SRC -DCMAKE_INSTALL_PREFIX=../path/to/install/folder -DNNPWS_WITH_PYTHON=ON
+cmake ../NNPWS_SRC -DCMAKE_INSTALL_PREFIX=../path/to/install/folder
 make
 make test 
+make doc
 make install 
 ```
 
