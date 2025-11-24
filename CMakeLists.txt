@@ -56,7 +56,7 @@ if (NNPWS_WITH_DOCUMENTATION)                                                   
   set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, doxygen, graphviz, mscgen")
   set (CPACK_RPM_PACKAGE_REQUIRES   "${CPACK_RPM_PACKAGE_REQUIRES},   doxygen, graphviz, mscgen")
 
-  configure_file (Doxyfile-NNPWS.in ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  @ONLY IMMEDIATE)
+  configure_file (doc/Doxyfile-NNPWS.in ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  @ONLY IMMEDIATE)
   add_custom_target (doc COMMAND ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  SOURCES ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc)			                                            #
   install (DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/dev-doc/html DESTINATION share/doc/NNPWS-dev-doc OPTIONAL)                  #
 
