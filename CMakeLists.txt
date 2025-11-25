@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.12.0)
 
-project("NNPWS")
+project("NNPWS" LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PROJECT_BRIEF "A library providing IAPWS-97 functions based on neural networks")
 
 list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake")

@@ -7,17 +7,17 @@
 #include <string>
 #include <memory>
 
-class ModelRepository {
+class ModelLoader {
 private:
     std::shared_ptr<torch::jit::script::Module> model_ptr;
 
-    ModelRepository() = default;
+    ModelLoader() = default;
 
 public:
-    static ModelRepository& instance();
+    static ModelLoader& instance();
 
-    ModelRepository(const ModelRepository&) = delete;
-    void operator=(const ModelRepository&) = delete;
+    ModelLoader(const ModelLoader&) = delete;
+    void operator=(const ModelLoader&) = delete;
 
     bool load(const std::string& path);
 
