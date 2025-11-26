@@ -3,7 +3,6 @@
 
 ModelLoader& ModelLoader::instance() {
     static ModelLoader _instance;
-    return _instance;
 }
 
 bool ModelLoader::load(const std::string& path) {
