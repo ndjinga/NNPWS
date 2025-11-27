@@ -1,31 +1,39 @@
 cmake_minimum_required(VERSION 3.12.0)
 
 project("NNPWS" LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PROJECT_BRIEF "A library providing IAPWS-97 functions based on neural networks")
-
-list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake")
 
 option (NNPWS_WITH_PYTHON     "Build Python interface of NNPWS" ON)
 option (NNPWS_WITH_TESTS      "Build and run NNPWS example tests" ON)
 option (NNPWS_WITH_DOCUMENTATION "Generate NNPWS documentation" ON)
 
 #Path to installed libraries
-set (PYTHON_ROOT_DIR      OFF CACHE STRING "Python library path" )
+set (PYTHON_ROOT_DIR       OFF CACHE STRING "Python  library path" )
+set (LIBTORCH_ROOT_DIR      OFF CACHE STRING "Libtorch library path" )
+
+list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake" "${LIBTORCH_ROOT_DIR}/share/cmake")
 
 set(MY_SOURCES
 src/NNPWS.cxx
+src/ModelLoader.cxx
 )
 set(MY_HEADERS
 src
 )
 
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
 add_library(NNPWSLib SHARED ${MY_SOURCES})
-target_include_directories(NNPWSLib PRIVATE ${MY_HEADERS})
+target_link_libraries(NNPWSLib "${TORCH_LIBRARIES}")
+target_include_directories(NNPWSLib PRIVATE ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
 install(TARGETS NNPWSLib DESTINATION lib)
 install(FILES PROJECT_SOURCE_DIR/src/NNPWS.hxx DESTINATION include) #
 
+#add_executable(MainTest src/main.cxx)
+#target_link_libraries(MainTest NNPWSLib)
 
 if( NNPWS_WITH_PYTHON )
   message(STATUS "NNPWS requested with PYTHON library. Searching PYTHON library.")

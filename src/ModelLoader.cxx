@@ -3,6 +3,7 @@
 
 ModelLoader& ModelLoader::instance() {
     static ModelLoader _instance;
+    return _instance;
 }
 
 bool ModelLoader::load(const std::string& path) {
@@ -19,7 +20,8 @@ bool ModelLoader::load(const std::string& path) {
         return true;
     }
     catch (const c10::Error& e) {
-        std::cerr << "[ModelRepository] Erreur critique de chargement : " << e.what() << std::endl;
+        //std::cerr << "[ModelRepository] Erreur critique de chargement : " << e.what() << std::endl;
+        std::cerr << "[ModelRepository] Erreur critique de chargement" << std::endl;
         return false;
     }
 }
