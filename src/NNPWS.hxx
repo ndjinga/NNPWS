@@ -27,14 +27,12 @@ using std::istringstream ;
 using std::ostringstream ;
 #include <typeinfo>
 #include <string>
+#include <iostream>
+#include <vector>
+#include <torch/script.h>
+#include "ModelLoader.hxx"
+#include "Regions.hxx"
 
-enum Region {
-    r1 = 1,
-    r2 = 2,
-    r3 = 3,
-    r4 = 4,
-    r5 = 5
-};
 
 //! NNPWS class
 class NNPWS {

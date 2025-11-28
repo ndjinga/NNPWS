@@ -1,8 +1,4 @@
 #include "NNPWS.hxx"
-#include <iostream>
-#include <vector>
-#include <torch/script.h>
-#include "ModelLoader.hxx"
 
 NNPWS::NNPWS() {
 }
@@ -266,7 +262,7 @@ double NNPWS::compute_d_h_d_T_p_pT(double p, double T) const {
 }
 
 Region NNPWS::determine_region(const double T, const double P) {
-    return r1;
+    return Regions_Boundaries::determine_region(T, P);
 }
 
 double NNPWS::compute_gibbs(double T, double P) const {

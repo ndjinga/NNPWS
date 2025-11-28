@@ -1,5 +1,4 @@
 #include "ModelLoader.hxx"
-#include <iostream>
 
 ModelLoader& ModelLoader::instance() {
     static ModelLoader _instance;
