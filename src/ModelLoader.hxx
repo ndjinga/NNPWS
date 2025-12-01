@@ -6,10 +6,12 @@
 #include <torch/script.h>
 #include <string>
 #include <memory>
+#include <map>
 
 class ModelLoader {
 private:
-    std::shared_ptr<torch::jit::script::Module> model_ptr;
+    // Stockage des modèles : Clé = Chemin du fichier, Valeur = Pointeur vers le modèle
+    std::map<std::string, std::shared_ptr<torch::jit::script::Module>> models_map;
 
     ModelLoader() = default;
 
@@ -21,9 +23,9 @@ public:
 
     bool load(const std::string& path);
 
-    std::shared_ptr<torch::jit::script::Module> get_model() const;
+    std::shared_ptr<torch::jit::script::Module> get_model(const std::string& path) const;
 
-    bool is_ready() const;
+    bool is_loaded(const std::string& path) const;
 };
 
 #endif //NNPWS_MODELLOADER_HXX

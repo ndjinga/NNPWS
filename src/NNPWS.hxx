@@ -280,6 +280,8 @@ private:
     double molar_mass_; // Molar mass (kg/mol)
     static int type_Id;
     */
+
+    std::shared_ptr<torch::jit::script::Module> model;
 };
 
 #endif //__NNPWS_HH__

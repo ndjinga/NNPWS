@@ -266,7 +266,7 @@ Region NNPWS::determine_region(const double T, const double P) {
 }
 
 double NNPWS::compute_gibbs(double T, double P) const {
-    auto model = ModelLoader::instance().get_model();
+    auto model = NNPWS::model.get();
 
     if (!model) {
         std::cerr << "[GibbsPredictor] Erreur : Modèle non chargé ! Appelez load() au début." << std::endl;
