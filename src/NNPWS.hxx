@@ -33,6 +33,15 @@ using std::ostringstream ;
 #include "ModelLoader.hxx"
 #include "Regions.hxx"
 
+enum PropertyIndex {
+    IDX_G = 0,
+    IDX_G_DT = 1,
+    IDX_G_DP = 2,
+    IDX_G_D2T = 3,
+    IDX_G_DTDP = 4,
+    IDX_G_D2P = 5,
+    IDX_COUNT
+};
 
 //! NNPWS class
 class NNPWS {
@@ -46,7 +55,7 @@ public:
     //! Destructor method
     ~NNPWS();
 
-    //! for initialisation (memory allocations) :
+    //! for initialization (memory allocations) :
     int init();
 
     //! Getter methods
@@ -260,7 +269,8 @@ public:
     //Error metod
     void describe_error(const EOS_Internal_Error error, std::string & description) const;
     */
-    double compute_gibbs(double T, double P) const;
+
+    int init(const std::string& path_model_pt, const std::string& path_model_ph);
 
 protected:
     /*
@@ -275,13 +285,32 @@ protected:
     */
     static Region determine_region(double T, double P);
 
+
 private:
     /*
     double molar_mass_; // Molar mass (kg/mol)
     static int type_Id;
     */
 
-    std::shared_ptr<torch::jit::script::Module> model;
+    std::shared_ptr<torch::jit::script::Module> module_pt_;
+    std::shared_ptr<torch::jit::script::Module> module_ph_;
+    bool is_initialized_ = false;
+    bool has_ph_model_ = false;
+
+    // Cache pour PT
+    mutable double cache_p_pt_ = -1.0;
+    mutable double cache_T_pt_ = -1.0;
+    mutable std::vector<double> cached_results_pt_;
+
+    // Cache pour PH
+    mutable double cache_p_ph_ = -1.0;
+    mutable double cache_h_ph_ = -1.0;
+    mutable std::vector<double> cached_results_ph_;
+
+    const std::vector<double>& run_inference_pt(double p, double T) const;
+    const std::vector<double>& run_inference_ph(double p, double h) const;
+    bool is_initialized_pt() const;
+    bool is_initialized_ph() const;
 };
 
 #endif //__NNPWS_HH__
