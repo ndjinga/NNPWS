@@ -30,7 +30,7 @@ add_library(NNPWSLib SHARED ${MY_SOURCES})
 target_link_libraries(NNPWSLib "${TORCH_LIBRARIES}")
 target_include_directories(NNPWSLib PRIVATE ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
 install(TARGETS NNPWSLib DESTINATION lib)
-install(FILES PROJECT_SOURCE_DIR/src/NNPWS.hxx DESTINATION include) #
+install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include) #
 
 #add_executable(MainTest src/main.cxx)
 #target_link_libraries(MainTest NNPWSLib)
