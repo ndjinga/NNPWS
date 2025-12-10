@@ -1,378 +1,164 @@
 #include "NNPWS.hxx"
+#include <iostream>
+#include <map>
+#include <stdexcept>
 
-NNPWS::NNPWS() {
-}
-
-NNPWS::NNPWS(const NNPWS &) {
-}
-
-NNPWS::~NNPWS() {
-}
-
-int NNPWS::init() {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_Ph(const char * const property_name, double in1, double in2) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_PT(const char * const property_name, double in1, double in2) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_Ph(const char * const property_name, int property_number, double in1, double in2) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_PT(const char * const property_name, int property_number, double in1, double in2) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_T_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_p_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_rho_l_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_rho_v_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_rho_l_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_rho_v_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_h_l_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_h_v_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_l_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_v_sat_p(double p) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_l_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_v_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_h_l_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_h_v_sat_T(double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_pr_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_h_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_T_ph(double p, double h) const {
-    if (!is_initialized_ph()) return -1.0;
-    const auto& results = run_inference_ph(p, h);
-
-    return results[0];
-}
-
-double NNPWS::compute_rho_pT(double p, double T) const {
-    if (!is_initialized_pt()) return -1.0;
-
-    const auto& results = run_inference_pt(p, T);
-
-    double v = results[IDX_G_DP] * 1e-3;
-
-    // Rho = 1 / v
-    if (v != 0.0) return 1.0 / v;
-    return 0.0;
-}
-
-double NNPWS::compute_rho_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_u_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_u_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_s_pT(double p, double T) const {
-
-    if (!is_initialized_pt()) return -1.0;
-    const auto& results = run_inference_pt(p, T);
-    return -results[IDX_G_DT];
-}
-
-double NNPWS::compute_s_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
+FastInference NNPWS::fast_engine_;
+std::shared_ptr<torch::jit::script::Module> NNPWS::module_pt_ = nullptr;
+bool NNPWS::is_initialized_ = false;
 
-double NNPWS::compute_mu_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_mu_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_lambda_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_lambda_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cp_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cv_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_cv_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_sigma_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_sigma_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_w_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_w_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_g_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_g_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_f_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_f_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_beta_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
+NNPWS::NNPWS() : valid_(false) {}
 
-double NNPWS::compute_beta_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
+NNPWS::NNPWS(double p, double T) {
+    set(p, T);
 }
 
-double NNPWS::compute_gamma_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_gamma_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_pr_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_T_min() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_T_max() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_p_max() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_p_min() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_h_min() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_h_max() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_T_crit() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_p_crit() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_h_crit() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::get_mm() const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_d_T_d_p_h_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_d_T_d_h_p_ph(double p, double h) const {
-    throw std::runtime_error("Not implemented yet.");
-}
-
-double NNPWS::compute_d_h_d_p_T_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
+NNPWS::~NNPWS() = default;
 
-double NNPWS::compute_d_h_d_T_p_pT(double p, double T) const {
-    throw std::runtime_error("Not implemented yet.");
-}
+int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_ph) {
+    if (is_initialized_) return 0;
 
-Region NNPWS::determine_region(const double T, const double P) {
-    return Regions_Boundaries::determine_region(T, P);
-}
+    if (!ModelLoader::instance().load(path_model_pt)) {
 
+        std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
+        return -1;
+    }
+    module_pt_ = ModelLoader::instance().get_model(path_model_pt);
 
-int NNPWS::init(const std::string& path_pt, const std::string& path_ph) {
+    try {
+        std::vector<int> regions = {1, 2, 3, 4, 5};
+        fast_engine_.load_from_module(module_pt_, regions);
+        is_initialized_ = true;
 
-    bool pt_loaded = ModelLoader::instance().load(path_pt);
-    bool ph_loaded = ModelLoader::instance().load(path_ph);
+    } catch (const std::exception& e) {
 
-    if (!pt_loaded) {
-        std::cerr << "NNPWS: Échec du chargement du modèle PT via ModelLoader." << std::endl;
+        std::cerr << "[NNPWS] Erreur init FastInference: " << e.what() << std::endl;
         return -1;
     }
 
-    if (ph_loaded) {
-        has_ph_model_ = true;
-
-        this->module_ph_ = ModelLoader::instance().get_model(path_ph);
-        if (!module_ph_) {
-            std::cerr << "NNPWS: Erreur lors de la récupération des pointeurs de modèles." << std::endl;
-            return -1;
-        }
-
-        cached_results_ph_.resize(IDX_COUNT, 0.0);
-    }
-    else if (!path_ph.empty()) {
-        std::cerr << "NNPWS: Échec du chargement de modèle PH via ModelLoader." << std::endl;
-        return -1;
-    }
-
-    this->module_pt_ = ModelLoader::instance().get_model(path_pt);
-
-    if (!module_pt_) {
-        std::cerr << "NNPWS: Erreur lors de la récupération des pointeurs de modèles." << std::endl;
-        return -1;
-    }
-
-    cached_results_pt_.resize(IDX_COUNT, 0.0);
-
-    is_initialized_ = true;
     return 0;
 }
 
+void NNPWS::set(double p, double T) {
+    this->p_ = p;
+    this->T_ = T;
 
-const std::vector<double>& NNPWS::run_inference_pt(double p, double T) const {
-    if (p == cache_p_pt_ && T == cache_T_pt_) {
-        return cached_results_pt_;
-    }
-
-    //torch::NoGradGuard no_grad;
-
-    int region = Regions_Boundaries::determine_region(T, p);
-
-    torch::Tensor inputs = torch::tensor({{T, p}}, torch::kDouble);
-
-    auto result = module_pt_->get_method("compute_derivatives_batch")({inputs, region});
-
-    torch::Tensor out_tensor = result.toTensor();
-
-    auto data_ptr = out_tensor.accessor<double, 2>();
-    for(int i=0; i < IDX_COUNT; ++i) {
-        cached_results_pt_[i] = data_ptr[0][i];
-    }
-
-    cache_p_pt_ = p;
-    cache_T_pt_ = T;
-
-    return cached_results_pt_;
+    this->calculate();
 }
 
-const std::vector<double>& NNPWS::run_inference_ph(double p, double h) const {
-    if (p == cache_p_ph_ && h == cache_h_ph_) {
-        return cached_results_ph_;
-    }
-    
-    cache_p_ph_ = p;
-    cache_h_ph_ = h;
+void NNPWS::calculate() {
+    valid_ = false;
+    G_ = 0; S_ = 0; V_ = 0; Rho_ = 0; Cp_ = 0; Kappa_ = 0;
 
-    return cached_results_ph_;
+    if (!is_initialized_) return;
+
+    Region r = Regions_Boundaries::determine_region(T_, p_);
+    if (r == out_of_regions) return;
+
+    FastResult res = fast_engine_.compute((int)r, p_, T_);
+
+    G_ = res.G;
+    S_ = -res.dG_dT;
+
+    const double vol = res.dG_dP * 1e-3; //G[kJ/kg], P[MPa] -> V[m3/kg]
+    V_ = vol;
+
+    if (std::abs(vol) > 1e-12) {
+        Rho_ = 1.0 / vol;
+        double dV_dP = res.d2G_dP2 * 1e-3;
+        Kappa_ = -(1.0 / vol) * dV_dP;
+    }
+
+    Cp_ = -T_ * res.d2G_dT2;
+    valid_ = true;
 }
 
-bool NNPWS::is_initialized_pt() const {
-    if (!is_initialized_) {
-        std::cerr << "NNPWS: classe non initialisé avec init()" << std::endl;
+void NNPWS::compute_batch(const std::vector<double>& p_list,
+                          const std::vector<double>& T_list,
+                          std::vector<NNPWS>& results) {
+
+    if (!is_initialized_ || !module_pt_) {
+        std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::init() d'abord." << std::endl;
+        throw std::runtime_error("Modèle non initialisé");
     }
 
-    return is_initialized_;
-}
-
-bool NNPWS::is_initialized_ph() const {
-    if (!is_initialized_pt()) {
-        return false;
+    if (p_list.size() != T_list.size()) {
+        std::string err_msg = "[NNPWS] Erreur de dimension : p_list (" + std::to_string(p_list.size()) +
+                              ") et T_list (" + std::to_string(T_list.size()) + ") doivent avoir la même taille.";
+        std::cerr << err_msg << std::endl;
+        throw std::invalid_argument(err_msg);
     }
 
-    if (!has_ph_model_) {
-        std::cerr << "NNPWS: modèle PH non initialisé avec init()" << std::endl;
+    size_t n = p_list.size();
+    results.clear();
+    results.resize(n);
+
+    std::map<int, std::vector<size_t>> region_indices;
+
+    for (size_t i = 0; i < n; ++i) {
+        Region r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
+        if (r == out_of_regions) {
+            results[i].valid_ = false;
+            continue;
+        }
+        region_indices[(int)r].push_back(i);
     }
 
-    return has_ph_model_;
+    for (auto const& [reg_id, indices] : region_indices) {
+        size_t n_reg = indices.size();
+        if (n_reg == 0) continue;
+
+        std::vector<double> flat_input;
+        flat_input.reserve(n_reg * 2);
+
+        for (size_t idx : indices) {
+            flat_input.push_back(T_list[idx]); // T en colonne 0
+            flat_input.push_back(p_list[idx]); // P en colonne 1
+        }
+
+        torch::Tensor input_tensor = torch::from_blob(flat_input.data(), {(long)n_reg, 2}, torch::kDouble).clone();
+
+        try {
+            std::vector<torch::jit::IValue> inputs;
+            inputs.emplace_back(input_tensor);
+            inputs.emplace_back(reg_id);
+
+            torch::Tensor output = module_pt_->get_method("compute_derivatives_batch")(inputs).toTensor();
+            auto acc = output.accessor<double, 2>();
+
+            for (size_t k = 0; k < n_reg; ++k) {
+                size_t original_idx = indices[k];
+                NNPWS& obj = results[original_idx];
+
+                obj.p_ = p_list[original_idx];
+                obj.T_ = T_list[original_idx];
+
+                double res_G     = acc[k][0];
+                double res_G_T   = acc[k][1];
+                double res_G_P   = acc[k][2];
+                double res_G_TT  = acc[k][3];
+                double res_G_PP  = acc[k][5];
+
+                obj.G_ = res_G;
+                obj.S_ = -res_G_T;
+
+                double vol = res_G_P * 1e-3;
+                obj.V_ = vol;
+
+                if (std::abs(vol) > 1e-12) {
+                    obj.Rho_ = 1.0 / vol;
+                    obj.Kappa_ = -(1.0 / vol) * (res_G_PP * 1e-3);
+                } else {
+                    obj.Rho_ = 0; obj.Kappa_ = 0;
+                }
+
+                obj.Cp_ = -obj.T_ * res_G_TT;
+                obj.valid_ = true;
+            }
+
+        } catch (const c10::Error& e) {
+            std::cerr << "[NNPWS] Erreur Batch LibTorch (Region " << reg_id << "): " << e.what() << std::endl;
+            // throw std::runtime_error("Erreur fatale dans le modèle Torch");
+        }
+    }
 }

@@ -18,10 +18,8 @@ public:
     static constexpr double Tc = 647.096; // Kelvin
     static constexpr double Pc = 22.064;  // MPa
 
-    // ---------------------------------------------------------
     // Équation de la pression de saturation (Psat) en fonction de T
     // Equation region 4 (Frontière entre Région 1 et 2)
-    // ---------------------------------------------------------
     static double saturation_pressure(double T) {
         // Coefficients officiels IAPWS-97 pour P_sat
         constexpr double n[] = {
@@ -47,10 +45,8 @@ public:
         return std::pow(term, 4.0);
     }
 
-    // ---------------------------------------------------------
     // Équation de la frontière entre Région 2 et 3
     // Equation region 5
-    // ---------------------------------------------------------
     static double boundary_2_3_pressure(double T) {
         constexpr double n[] = {
             0.0,
@@ -61,9 +57,7 @@ public:
         return n[1] + n[2] * T + n[3] * T * T;
     }
 
-    // ---------------------------------------------------------
     // Déterminer la région
-    // ---------------------------------------------------------
     static Region determine_region(double T, double P) {
         if (T < 273.15) return out_of_regions;
         if (T > 1073.15) return r5; // Haute température (Région 5)

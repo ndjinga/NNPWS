@@ -16,7 +16,7 @@ bool ModelLoader::load(const std::string& path) {
     try {
         torch::NoGradGuard no_grad;
 
-        auto module = std::make_shared<torch::jit::script::Module>(torch::jit::load(path));
+        auto module = std::make_shared<torch::jit::script::Module>(torch::jit::load(path, torch::kCPU));
 
         module->eval();
         module->to(torch::kDouble);
@@ -28,6 +28,7 @@ bool ModelLoader::load(const std::string& path) {
     }
     catch (const c10::Error& e) {
         std::cerr << "[ModelLoader] Erreur critique de chargement pour " << path << std::endl;
+        //std::cerr << "[ModelLoader] Erreur critique: " << e.what() << std::endl;
         return false;
     }
 }
@@ -37,7 +38,7 @@ std::shared_ptr<torch::jit::script::Module> ModelLoader::get_model(const std::st
     if (it != models_map.end()) {
         return it->second;
     }
-    return nullptr; // Pas trouvé
+    return nullptr;
 }
 
 bool ModelLoader::is_loaded(const std::string& path) const {
