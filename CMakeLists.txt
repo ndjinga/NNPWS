@@ -18,6 +18,7 @@ list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake" "${LIBTORCH_ROOT_DIR}
 set(MY_SOURCES
 src/NNPWS.cxx
 src/ModelLoader.cxx
+src/FastInference.cxx
 )
 set(MY_HEADERS
 src
