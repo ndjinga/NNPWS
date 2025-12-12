@@ -39,7 +39,7 @@ int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_
     return 0;
 }
 
-void NNPWS::set(double p, double T) {
+void NNPWS::setPT(double p, double T) {
     this->p_ = p;
     this->T_ = T;
 

@@ -17,7 +17,7 @@ public:
 
     static int init(const std::string& path_model_pt, const std::string& path_model_ph = "");
 
-    void set(double p, double T);
+    void setPT(double p, double T);
 
     double getPressure() const { return p_; }     // MPa
     double getTemperature() const { return T_; }  // K
