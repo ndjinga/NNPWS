@@ -13,9 +13,10 @@ class NNPWS {
 public:
     NNPWS();
     NNPWS(double p, double T);
+    NNPWS(const std::string& path_model_pt, const std::string& path_model_ph = "");
     ~NNPWS();
 
-    static int init(const std::string& path_model_pt, const std::string& path_model_ph = "");
+    static int init(const std::string& path_model_pt="ressources/", const std::string& path_model_ph = "");
 
     void setPT(double p, double T);
 
@@ -49,6 +50,9 @@ private:
     double Cp_ = 0.0;
     double Kappa_ = 0.0;
     
+    std::string& path_model_pt_;
+    std::string& path_model_ph_;
+
     bool valid_ = false;
 
     void calculate();

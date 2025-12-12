@@ -7,10 +7,15 @@ FastInference NNPWS::fast_engine_;
 std::shared_ptr<torch::jit::script::Module> NNPWS::module_pt_ = nullptr;
 bool NNPWS::is_initialized_ = false;
 
-NNPWS::NNPWS() : valid_(false) {}
+NNPWS::NNPWS() : valid_(false), path_model_pt_("ressources/"); {}
 
-NNPWS::NNPWS(double p, double T) {
-    set(p, T);
+NNPWS::NNPWS(double p, double T), path_model_pt_("ressources/") {
+    setPT(p, T);
+}
+
+NNPWS(const std::string& path_model_pt, const std::string& path_model_ph)
+{
+	setNNPath( path_model_pt, path_model_ph);
 }
 
 NNPWS::~NNPWS() = default;
@@ -47,6 +52,12 @@ void NNPWS::setPT(double p, double T) {
         this->T_ = T;
         this->calculate();
     }
+}
+
+void setNNPath(const std::string& path_model_pt, const std::string& path_model_ph)
+{
+	path_model_pt_ = path_model_pt;
+	path_model_ph_ = path_model_ph;
 }
 
 void NNPWS::calculate() {
