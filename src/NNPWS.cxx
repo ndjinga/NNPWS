@@ -9,7 +9,7 @@ bool NNPWS::is_initialized_ = false;
 
 NNPWS::NNPWS() : valid_(false), path_model_pt_("ressources/"); {}
 
-NNPWS::NNPWS(double p, double T), path_model_pt_("ressources/") {
+NNPWS::NNPWS(double p, double T) : path_model_pt_("ressources/") {
     setPT(p, T);
 }
 
@@ -26,7 +26,7 @@ int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_
     if (!ModelLoader::instance().load(path_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        return -1;
+        return -1;//throw exception
     }
     module_pt_ = ModelLoader::instance().get_model(path_model_pt);
 
@@ -38,7 +38,7 @@ int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_
     } catch (const std::exception& e) {
 
         std::cerr << "[NNPWS] Erreur init FastInference: " << e.what() << std::endl;
-        return -1;
+        return -1;//throw exception
     }
 
     return 0;
@@ -77,11 +77,12 @@ void NNPWS::calculate() {
     const double vol = res.dG_dP * 1e-3; //G[kJ/kg], P[MPa] -> V[m3/kg]
     V_ = vol;
 
-    if (std::abs(vol) > 1e-12) {
+    if (std::abs(vol) > precision_) {
         Rho_ = 1.0 / vol;
         double dV_dP = res.d2G_dP2 * 1e-3;
         Kappa_ = -(1.0 / vol) * dV_dP;
     }
+    //else//throw exception
 
     Cp_ = -T_ * res.d2G_dT2;
     valid_ = true;
@@ -159,10 +160,10 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
                 double vol = res_G_P * 1e-3;
                 obj.V_ = vol;
 
-                if (std::abs(vol) > 1e-12) {
+                if (std::abs(vol) > precision_) {
                     obj.Rho_ = 1.0 / vol;
                     obj.Kappa_ = -(1.0 / vol) * (res_G_PP * 1e-3);
-                } else {
+                } else {//throw exception
                     obj.Rho_ = 0; obj.Kappa_ = 0;
                 }
 

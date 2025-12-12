@@ -50,10 +50,11 @@ private:
     double Cp_ = 0.0;
     double Kappa_ = 0.0;
     
-    std::string& path_model_pt_;
+    std::string& path_model_pt_ = "ressources/";
     std::string& path_model_ph_;
 
     bool valid_ = false;
+    double precision_ = 1e-12;
 
     void calculate();
 };
