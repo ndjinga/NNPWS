@@ -27,8 +27,12 @@ make install
 + CMake, mandatory. Package 'cmake' on Fedora and Ubuntu
 + python (optional), required if '-DNNPWS_WITH_PYTHON=ON'. Package 'python-devel' on Fedora, 'python-dev' on Ubuntu
 + SWIG (optional), required if '-DNNPWS_WITH_PYTHON=ON'. Package 'swig' on Fedora and Ubuntu
-+ matplotlib (optional), required if '-DNNPWS_WITH_TESTS=ON' and '-DNNPWS_WITH_PYTHON=ON'. Used for curves plotting in tests. Package 'python-matplotlib' on Fedora and Ubuntu
-+ libTorch (optional), required if '-DNNPWS_WITH_LIBTORCH=ON'. Package 'libtorch-dev' on Ubuntu 22.04, or install the full Pytorch library (package 'python3-torch' on Fedora or 'pip3 install torch' on Ubuntu).
++ matplotlib (optional), required if '-DNNPWS_WITH_TESTS=ON' and '-DNNPWS_WITH_PYTHON=ON'.  
+  Used for curve plotting in Python tests. Package 'python-matplotlib' on Fedora and Ubuntu
++ libTorch (optional), required if '-DNNPWS_WITH_LIBTORCH=ON'. Usefull for batch computation and GPU acceleration.  r
+  Package 'libtorch-dev' on Ubuntu 22.04, or download [here](https://download.pytorch.org/libtorch/nightly/cu128/libtorch-cxx11-abi-shared-with-deps-latest.zip).
++ PyTorch library (optional). Package 'python3-torch' on Fedora or 'pip3 install torch' on Ubuntu.  
+  set '-DPyTORCH_ROOT_DIR=/path/to/pytorch/folder' to provide libTorch as a submodule of PyTorch.
 + Doxygen (optional), required if '-DNNPWS_WITH_DOCUMENTATION=ON'. Package 'doxygen' on Ubuntu and fedora
 
 ## Notebook & examples
