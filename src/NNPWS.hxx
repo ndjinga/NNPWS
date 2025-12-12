@@ -22,11 +22,11 @@ public:
 
     double getPressure() const { return p_; }     // MPa
     double getTemperature() const { return T_; }  // K
-    double getGibbs() const { return G_; }        // kJ/kg
-    double getEntropy() const { return S_; }      // kJ/(kg.K)
-    double getVolume() const { return V_; }       // m3/kg
+    double getGibbs() const { return g_derivatives_.G; }        // kJ/kg
+    double getEntropy() const { return -g_derivatives_.dG_dT; }      // kJ/(kg.K)
+    double getVolume() const { return g_derivatives_.dG_dP * 1e-3; }       // m3/kg
     double getDensity() const { return Rho_; }    // kg/m3
-    double getCp() const { return Cp_; }          // kJ/(kg.K)
+    double getCp() const { return -T_ * g_derivatives_.d2G_dT2; }          // kJ/(kg.K)
     double getKappa() const { return Kappa_; }    // 1/MPa
     bool isValid() const { return valid_; }
 
@@ -37,17 +37,14 @@ public:
 
 private:
     static FastInference fast_engine_; 
+    FastResult g_derivatives_;
     static std::shared_ptr<torch::jit::script::Module> module_pt_;
     static bool is_initialized_;
 
     double p_ = 0.0;
     double T_ = 0.0;
     
-    double G_ = 0.0;
-    double S_ = 0.0;
-    double V_ = 0.0;
     double Rho_ = 0.0;
-    double Cp_ = 0.0;
     double Kappa_ = 0.0;
     
     std::string& path_model_pt_ = "ressources/";

@@ -62,29 +62,23 @@ void setNNPath(const std::string& path_model_pt, const std::string& path_model_p
 
 void NNPWS::calculate() {
     valid_ = false;
-    G_ = 0; S_ = 0; V_ = 0; Rho_ = 0; Cp_ = 0; Kappa_ = 0;
 
     if (!is_initialized_) return;
 
     Region r = Regions_Boundaries::determine_region(T_, p_);
     if (r == out_of_regions) return;
 
-    FastResult res = fast_engine_.compute((int)r, p_, T_);
+    g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
 
-    G_ = res.G;
-    S_ = -res.dG_dT;
 
-    const double vol = res.dG_dP * 1e-3; //G[kJ/kg], P[MPa] -> V[m3/kg]
-    V_ = vol;
-
+ 
     if (std::abs(vol) > precision_) {
         Rho_ = 1.0 / vol;
-        double dV_dP = res.d2G_dP2 * 1e-3;
+        double dV_dP = g_derivatives_.d2G_dP2 * 1e-3;
         Kappa_ = -(1.0 / vol) * dV_dP;
     }
     //else//throw exception
 
-    Cp_ = -T_ * res.d2G_dT2;
     valid_ = true;
 }
 
