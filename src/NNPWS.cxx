@@ -3,17 +3,23 @@
 #include <map>
 #include <stdexcept>
 
-FastInference NNPWS::fast_engine_;
-std::shared_ptr<torch::jit::script::Module> NNPWS::module_pt_ = nullptr;
-bool NNPWS::is_initialized_ = false;
 
-NNPWS::NNPWS() : valid_(false), path_model_pt_("ressources/"); {}
+NNPWS::NNPWS() : valid_(false), path_model_pt_("ressources/PT.jit"); {}
 
-NNPWS::NNPWS(double p, double T) : path_model_pt_("ressources/") {
-    setPT(p, T);
+NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_model_pt, const std::string& path_model_ph ) : valid_(false) {
+    setNNPath( path_model_pt, path_model_ph);
+    
+    switch(varnames)
+    {
+        case PT   : setPT(  var1, var2); break;
+        //case PH   : setPH(  var1, var2); break;
+        //case RhoE : setRhoE(var1, var2); break;
+        default : throw exception not yet implemented
+    }
+        
 }
 
-NNPWS(const std::string& path_model_pt, const std::string& path_model_ph)
+NNPWS(const std::string& path_model_pt, const std::string& path_model_ph) ) : valid_(false) 
 {
 	setNNPath( path_model_pt, path_model_ph);
 }
@@ -63,28 +69,24 @@ void setNNPath(const std::string& path_model_pt, const std::string& path_model_p
 void NNPWS::calculate() {
     valid_ = false;
 
-    if (!is_initialized_) return;
+    if (!is_initialized_) return;//throw exception
 
     Region r = Regions_Boundaries::determine_region(T_, p_);
-    if (r == out_of_regions) return;
+    if (r == out_of_regions) return;//throw exception
 
     g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
-
-
  
-    if (std::abs(vol) > precision_) {
-        Rho_ = 1.0 / vol;
-        double dV_dP = g_derivatives_.d2G_dP2 * 1e-3;
-        Kappa_ = -(1.0 / vol) * dV_dP;
-    }
-    //else//throw exception
+    /* Check volume is non zero */
+    //if (std::abs(vol) < precision_) 
+    //throw exception
 
     valid_ = true;
 }
 
 void NNPWS::compute_batch(const std::vector<double>& p_list,
                           const std::vector<double>& T_list,
-                          std::vector<NNPWS>& results) {
+                          std::vector<NNPWS>& results,
+                          const std::string& path_model_pt) {
 
     if (!is_initialized_ || !module_pt_) {
         std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::init() d'abord." << std::endl;
@@ -103,9 +105,11 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
     results.resize(n);
 
     std::map<int, std::vector<size_t>> region_indices;
-
+    Region r;
+    double vol;
+    
     for (size_t i = 0; i < n; ++i) {
-        Region r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
+        r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
         if (r == out_of_regions) {
             results[i].valid_ = false;
             continue;
@@ -141,27 +145,14 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
 
                 obj.p_ = p_list[original_idx];
                 obj.T_ = T_list[original_idx];
+                
+                obj.g_derivatives = FastResult(acc[k][0],acc[k][1],acc[k][2],acc[k][3],acc[k][4],acc[k][5])
 
-                double res_G     = acc[k][0];
-                double res_G_T   = acc[k][1];
-                double res_G_P   = acc[k][2];
-                double res_G_TT  = acc[k][3];
-                double res_G_PP  = acc[k][5];
+                vol = obj.getVolume() * 1e-3;//now check if non zero
 
-                obj.G_ = res_G;
-                obj.S_ = -res_G_T;
-
-                double vol = res_G_P * 1e-3;
-                obj.V_ = vol;
-
-                if (std::abs(vol) > precision_) {
-                    obj.Rho_ = 1.0 / vol;
-                    obj.Kappa_ = -(1.0 / vol) * (res_G_PP * 1e-3);
-                } else {//throw exception
-                    obj.Rho_ = 0; obj.Kappa_ = 0;
-                }
-
-                obj.Cp_ = -obj.T_ * res_G_TT;
+                /* check volume is non zero */
+                //if (std::abs(vol) < precision_) 
+                    //throw exception
                 obj.valid_ = true;
             }
 
