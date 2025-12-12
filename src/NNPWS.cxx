@@ -4,37 +4,37 @@
 #include <stdexcept>
 
 
-NNPWS::NNPWS() : valid_(false), path_model_pt_("ressources/PT.jit"); {}
+NNPWS::NNPWS() : valid_(false); {}//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
 
-NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_model_pt, const std::string& path_model_ph ) : valid_(false) {
-    setNNPath( path_model_pt, path_model_ph);
+NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false) {
+    setNeuralNetworks( path_main_model_pt, path_secondary_model);
     
     switch(varnames)
     {
-        case PT   : setPT(  var1, var2); break;
+        case PT   : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
         //case PH   : setPH(  var1, var2); break;
         //case RhoE : setRhoE(var1, var2); break;
         default : throw exception not yet implemented
     }
-        
+     
 }
 
-NNPWS(const std::string& path_model_pt, const std::string& path_model_ph) ) : valid_(false) 
+NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) ) : valid_(false) 
 {
-	setNNPath( path_model_pt, path_model_ph);
+	setNeuralNetworks( path_main_model_pt, path_secondary_model);
 }
 
 NNPWS::~NNPWS() = default;
 
-int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_ph) {
-    if (is_initialized_) return 0;
+int NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
+    if ( path_main_model_pt==path_main_model_pt && path_secondary_model==path_secondary_model) return 0;
 
-    if (!ModelLoader::instance().load(path_model_pt)) {
+    if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
         return -1;//throw exception
     }
-    module_pt_ = ModelLoader::instance().get_model(path_model_pt);
+    module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
 
     try {
         std::vector<int> regions = {1, 2, 3, 4, 5};
@@ -47,6 +47,9 @@ int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_
         return -1;//throw exception
     }
 
+	path_main_model_pt_   = path_main_model_pt;
+	path_secondary_model_ = path_secondary_model;
+
     return 0;
 }
 
@@ -58,12 +61,6 @@ void NNPWS::setPT(double p, double T) {
         this->T_ = T;
         this->calculate();
     }
-}
-
-void setNNPath(const std::string& path_model_pt, const std::string& path_model_ph)
-{
-	path_model_pt_ = path_model_pt;
-	path_model_ph_ = path_model_ph;
 }
 
 void NNPWS::calculate() {
@@ -86,10 +83,10 @@ void NNPWS::calculate() {
 void NNPWS::compute_batch(const std::vector<double>& p_list,
                           const std::vector<double>& T_list,
                           std::vector<NNPWS>& results,
-                          const std::string& path_model_pt) {
+                          const std::string& path_main_model_pt) {
 
     if (!is_initialized_ || !module_pt_) {
-        std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::init() d'abord." << std::endl;
+        std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::setNeuralNetworks() d'abord." << std::endl;
         throw std::runtime_error("Modèle non initialisé");
     }
 
