@@ -31,9 +31,9 @@ make install
 + matplotlib (optional), required if '-DNNPWS_WITH_TESTS=ON' and '-DNNPWS_WITH_PYTHON=ON'.  
   Used for curve plotting in Python tests. Package 'python-matplotlib' on Fedora and Ubuntu.
 + libTorch (optional), required if '-DNNPWS_WITH_LIBTORCH=ON'. Usefull for batch computation and GPU acceleration.
-  Package 'libtorch-dev' on Ubuntu 22.04, or download [here](https://download.pytorch.org/libtorch/nightly/cu128/libtorch-cxx11-abi-shared-with-deps-latest.zip).  
-+ PyTorch library (optional). Package 'python3-torch' on Fedora or 'pip3 install torch' on Ubuntu.  
-  Set '-DPyTORCH_ROOT_DIR=/path/to/pytorch/folder' to provide libTorch as a submodule of PyTorch.
+  Package 'libtorch-dev' on Ubuntu 22.04, or download [here](https://download.pytorch.org/libtorch/nightly/cu128/libtorch-cxx11-abi-shared-with-deps-latest.zip),
+  or via PyTorch library (Package 'python3-torch' on Fedora or 'pip3 install torch' on Ubuntu).  
+  Set '-DTORCH_INSTALL_PREFIX=/path/to/libtorch/folder' to help with the detection of libTorch.
 + Doxygen (optional), required if '-DNNPWS_WITH_DOCUMENTATION=ON'.  
   Package 'doxygen' on Ubuntu and fedora.
 
