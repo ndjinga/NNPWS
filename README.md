@@ -16,7 +16,7 @@ We also  provide error and computational time estimates.
 git clone https://github.com/ndjinga/NNPWS NNPWS_SRC
 mkdir build
 cd build
-cmake ../NNPWS_SRC -DCMAKE_INSTALL_PREFIX=../path/to/install/folder
+cmake ../NNPWS_SRC -DCMAKE_INSTALL_PREFIX=../path/to/install/folder -DCMAKE_WITH_PYTHON=ON  -DCMAKE_WITH_TESTS=ON  -DCMAKE_WITH_LIBTORCH=ON -DNNPWS_WITH_DOCUMENTATION=ON
 make
 make test 
 make doc
@@ -27,8 +27,9 @@ make install
 + CMake, mandatory. Package 'cmake' on Fedora and Ubuntu
 + python (optional), required if '-DNNPWS_WITH_PYTHON=ON'. Package 'python-devel' on Fedora, 'python-dev' on Ubuntu
 + SWIG (optional), required if '-DNNPWS_WITH_PYTHON=ON'. Package 'swig' on Fedora and Ubuntu
-+ matplotlib (optional), for curves plotting in tests. Package 'python-matplotlib' on Fedora and Ubuntu
-
++ matplotlib (optional), required if '-DNNPWS_WITH_TESTS=ON' and '-DNNPWS_WITH_PYTHON=ON'. Used for curves plotting in tests. Package 'python-matplotlib' on Fedora and Ubuntu
++ libTorch (optional), required if '-DNNPWS_WITH_LIBTORCH=ON'. Package 'libtorch-dev' on Ubuntu 22.04, or install the full Pytorch library (package 'python3-torch' on Fedora or 'pip3 install torch' on Ubuntu).
++ Doxygen (optional), required if '-DNNPWS_WITH_DOCUMENTATION=ON'. Package 'doxygen' on Ubuntu and fedora
 
 ## Notebook & examples
 
