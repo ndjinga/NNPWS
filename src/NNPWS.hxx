@@ -9,7 +9,7 @@
 #include "Regions.hxx"
 #include "ModelLoader.hxx"
 
-enum inputPair { PT, PH, RhoE };
+enum inputPair { PT, PH, RhoE, Undefined };
 
 class NNPWS {
 public:
@@ -27,6 +27,8 @@ public:
     void setPT(double p, double T);
     //void setPH(double p, double h);    //computes        T_, then call setPT(p_,T_)
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
+    void setInputPair( inputPair inputPr){ inputPr_=inputPr; }
+    inputPair getInputPair( ){ return inputPr_ ; }
 
     /* Pressure in MPa */
     double getPressure() const { if (valid_) return p_;
@@ -92,6 +94,7 @@ private:
 
     double p_ = 0.0;
     double T_ = 0.0;
+    inputPair inputPr_ = Undefined;
 
     //Path to the main neural network, the one that computes g and its derivatives from P and T
     std::string path_main_model_pt_ = "resources/models/DNN_TP_v6.pt";
