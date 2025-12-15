@@ -3,27 +3,38 @@
 #include <map>
 #include <stdexcept>
 
-FastInference NNPWS::fast_engine_;
-std::shared_ptr<torch::jit::script::Module> NNPWS::module_pt_ = nullptr;
-bool NNPWS::is_initialized_ = false;
 
-NNPWS::NNPWS() : valid_(false) {}
+NNPWS::NNPWS() : valid_(false), is_initialized_(false) {}//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
 
-NNPWS::NNPWS(double p, double T) {
-    set(p, T);
+NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false), is_initialized_(false) {
+    setNeuralNetworks( path_main_model_pt, path_secondary_model);
+    
+    switch(varnames)
+    {
+        case PT   : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
+        //case PH   : setPH(  var1, var2); break;
+        //case RhoE : setRhoE(var1, var2); break;
+        default : throw exception not yet implemented
+    }
+     
+}
+
+NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) ) : valid_(false), is_initialized_(false) 
+{
+	setNeuralNetworks( path_main_model_pt, path_secondary_model);
 }
 
 NNPWS::~NNPWS() = default;
 
-int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_ph) {
-    if (is_initialized_) return 0;
+int NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
+    if ( path_main_model_pt==path_main_model_pt && path_secondary_model==path_secondary_model) return 0;
 
-    if (!ModelLoader::instance().load(path_model_pt)) {
+    if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        return -1;
+        return -1;//throw exception
     }
-    module_pt_ = ModelLoader::instance().get_model(path_model_pt);
+    module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
 
     try {
         std::vector<int> regions = {1, 2, 3, 4, 5};
@@ -33,54 +44,55 @@ int NNPWS::init(const std::string& path_model_pt, const std::string& path_model_
     } catch (const std::exception& e) {
 
         std::cerr << "[NNPWS] Erreur init FastInference: " << e.what() << std::endl;
-        return -1;
+        return -1;//throw exception
     }
+
+	path_main_model_pt_   = path_main_model_pt;
+	path_secondary_model_ = path_secondary_model;
 
     return 0;
 }
 
-void NNPWS::set(double p, double T) {
-    this->p_ = p;
-    this->T_ = T;
-
-    this->calculate();
+void NNPWS::setPT(double p, double T) {
+	
+	if( this->p_ != p || this->T_ != T )
+    {
+        this->p_ = p;
+        this->T_ = T;
+        this->calculateG_derivatives();
+    }
 }
 
-void NNPWS::calculate() {
+void NNPWS::calculateG_derivatives() {
     valid_ = false;
-    G_ = 0; S_ = 0; V_ = 0; Rho_ = 0; Cp_ = 0; Kappa_ = 0;
 
-    if (!is_initialized_) return;
+    if (!is_initialized_) return;//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model) 
 
     Region r = Regions_Boundaries::determine_region(T_, p_);
-    if (r == out_of_regions) return;
+    if (r == out_of_regions) return;//throw exception
 
-    FastResult res = fast_engine_.compute((int)r, p_, T_);
+    g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
+ 
+    /* Check volume is non zero */
+    if (std::abs(vol) < precision_) 
+        return -1;//throw exception
 
-    G_ = res.G;
-    S_ = -res.dG_dT;
-
-    const double vol = res.dG_dP * 1e-3; //G[kJ/kg], P[MPa] -> V[m3/kg]
-    V_ = vol;
-
-    if (std::abs(vol) > 1e-12) {
-        Rho_ = 1.0 / vol;
-        double dV_dP = res.d2G_dP2 * 1e-3;
-        Kappa_ = -(1.0 / vol) * dV_dP;
-    }
-
-    Cp_ = -T_ * res.d2G_dT2;
     valid_ = true;
 }
 
 void NNPWS::compute_batch(const std::vector<double>& p_list,
                           const std::vector<double>& T_list,
-                          std::vector<NNPWS>& results) {
+                          std::vector<NNPWS>& results,
+                          const std::string& path_main_model_pt,
+                          const std::string& path_secondary_model) {
 
-    if (!is_initialized_ || !module_pt_) {
-        std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::init() d'abord." << std::endl;
-        throw std::runtime_error("Modèle non initialisé");
+    if (!ModelLoader::instance().load(path_main_model_pt)) {
+
+        std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
+        return -1;//throw exception
     }
+    std::shared_ptr<torch::jit::script::Module>  module_pt = ModelLoader::instance().get_model(path_main_model_pt);
+
 
     if (p_list.size() != T_list.size()) {
         std::string err_msg = "[NNPWS] Erreur de dimension : p_list (" + std::to_string(p_list.size()) +
@@ -94,9 +106,11 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
     results.resize(n);
 
     std::map<int, std::vector<size_t>> region_indices;
-
+    Region r;
+    double vol;
+    
     for (size_t i = 0; i < n; ++i) {
-        Region r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
+        r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
         if (r == out_of_regions) {
             results[i].valid_ = false;
             continue;
@@ -123,7 +137,7 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
             inputs.emplace_back(input_tensor);
             inputs.emplace_back(reg_id);
 
-            torch::Tensor output = module_pt_->get_method("compute_derivatives_batch")(inputs).toTensor();
+            torch::Tensor output = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
             auto acc = output.accessor<double, 2>();
 
             for (size_t k = 0; k < n_reg; ++k) {
@@ -132,27 +146,19 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
 
                 obj.p_ = p_list[original_idx];
                 obj.T_ = T_list[original_idx];
+                
+                obj.g_derivatives = FastResult(acc[k][0],acc[k][1],acc[k][2],acc[k][3],acc[k][4],acc[k][5])
 
-                double res_G     = acc[k][0];
-                double res_G_T   = acc[k][1];
-                double res_G_P   = acc[k][2];
-                double res_G_TT  = acc[k][3];
-                double res_G_PP  = acc[k][5];
+                vol = obj.getVolume() * 1e-3;//now check if non zero
 
-                obj.G_ = res_G;
-                obj.S_ = -res_G_T;
+                /* check volume is non zero */
+                if (std::abs(vol) < precision_) 
+                    return -1;//throw exception
 
-                double vol = res_G_P * 1e-3;
-                obj.V_ = vol;
-
-                if (std::abs(vol) > 1e-12) {
-                    obj.Rho_ = 1.0 / vol;
-                    obj.Kappa_ = -(1.0 / vol) * (res_G_PP * 1e-3);
-                } else {
-                    obj.Rho_ = 0; obj.Kappa_ = 0;
-                }
-
-                obj.Cp_ = -obj.T_ * res_G_TT;
+            	obj.path_main_model_pt_   = path_main_model_pt;
+                obj.path_secondary_model_ = path_secondary_model;
+                
+                obj.is_initialized_ = false;
                 obj.valid_ = true;
             }
 

@@ -10,10 +10,10 @@ option (NNPWS_WITH_TESTS      "Build and run NNPWS example tests" ON)
 option (NNPWS_WITH_DOCUMENTATION "Generate NNPWS documentation" ON)
 
 #Path to installed libraries
-set (PYTHON_ROOT_DIR       OFF CACHE STRING "Python  library path" )
-set (LIBTORCH_ROOT_DIR      OFF CACHE STRING "Libtorch library path" )
+set (PYTHON_ROOT_DIR        OFF CACHE STRING "Python  library path" )
+set (TORCH_INSTALL_PREFIX      OFF CACHE STRING "Libtorch library path" )
 
-list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake" "${LIBTORCH_ROOT_DIR}/share/cmake")
+list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake" "${TORCH_INSTALL_PREFIX}/share/cmake")
 
 set(MY_SOURCES
 src/NNPWS.cxx
