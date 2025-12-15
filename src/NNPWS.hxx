@@ -28,24 +28,29 @@ public:
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
 
     /* Pressure in MPa */
-    double getPressure() const { return p_; }     // MPa
+    double getPressure() const { if (valid_) return p_; else throw exception; }     // MPa
     /* Temperature in Kelvin */
-    double getTemperature() const { return T_; }  // K
+    double getTemperature() const { if (valid_) return T_; else throw exception; }  // K
     /* Gibbs Free energy in KJ/Kg */
-    double getGibbs() const { return g_derivatives_.G; }        // kJ/kg
+    double getGibbs() const { if (valid_) return g_derivatives_.G; else throw exception; }        // kJ/kg
     /* Entropy in kJ/(kg.K) */
-    double getEntropy() const { return -g_derivatives_.dG_dT; }      // kJ/(kg.K)
+    double getEntropy() const { if (valid_) return -g_derivatives_.dG_dT; else throw exception; }      // kJ/(kg.K)
     /* Volume in m3/kg */
-    double getVolume() const { return g_derivatives_.dG_dP * 1e-3; }       // m3/kg
+    double getVolume() const { if (valid_) return g_derivatives_.dG_dP * 1e-3; else throw exception; }       // m3/kg
     /* Density in kg/m3 */
-    double getDensity() const { return 1/getVolume(); }    // kg/m3  // volume is non zero because of earlier check in function  calculate
+    double getDensity() const { if (valid_) return 1/getVolume(); else throw exception; }    // kg/m3  // volume is non zero because of earlier check in function  calculate
+    /* Enthalpy in kJ/kg */
+    double getEnthalpy() const { if (valid_) return g_derivatives_.G - T_*g_derivatives_.dG_dT; else throw exception; }      // kJ/(kg.K)
+    /* Internal Energy in kJ/kg */
+    double getInternalEnergy() const { if (valid_) return getEnthalpy() - P_*getVolume(); else throw exception; }      // kJ/(kg.K)
     /* Isobaric heat capacity in kJ/(kg.K) */
-    double getCp() const { return -T_ * g_derivatives_.d2G_dT2; }          // kJ/(kg.K)
+    double getCp() const { if (valid_) return -T_ * g_derivatives_.d2G_dT2; else throw exception; }          // kJ/(kg.K)
+    //To do : getCrho() et getSoundSpeed()
     
-    double getdV_dP() const { return g_derivatives_.d2G_dP2 * 1e-3;}
+    double getdV_dP() const { if (valid_) return g_derivatives_.d2G_dP2 * 1e-3; else throw exception; }
     /* Compressibilité isotherme in 1/MPa */
-    double getCompressibiliteIsotherme() const { return -getDensity() * getdV_dP(); }    // 1/MPa
-    double getKappa() const { return -getDensity() * getdV_dP(); }    // 1/MPa
+    double getCompressibiliteIsotherme() const { if (valid_) return -getDensity() * getdV_dP(); else throw exception; }    // 1/MPa
+    double getKappa() const { if (valid_) return -getDensity() * getdV_dP(); else throw exception; }    // 1/MPa
     
     bool isValid() const { return valid_; }
 
@@ -64,9 +69,6 @@ private:
 
     double p_ = 0.0;
     double T_ = 0.0;
-    
-    double Rho_ = 0.0;
-    double Kappa_ = 0.0;
     
     std::string& path_main_model_pt_  = "";//Path to the main neural network, the one that computes g and its derivatives from P and T
     std::string& path_secondary_model_= "";//Path to the secondary neural network, the one that computes (P,T) from (P,h) or (rho, e) depending on the enum inputPair
