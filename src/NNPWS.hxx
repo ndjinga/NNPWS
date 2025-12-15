@@ -13,17 +13,18 @@ enum inputPair { PT, PH, RhoE, Undefined };
 
 class NNPWS {
 public:
-    /* Default constructor. Does not load the NN model. Used to save memory. */
+    /* Basic constructor. Does not load the NN model. Used to save memory. */
     NNPWS();
-    /* Full data constructor. Loads the NN model in memory and computes fluid properties. */
+    /* Full data constructor. Loads the NN model in memory and computes g derivatives. */
     NNPWS(inputPair varnames, double first, double second, const std::string& path_main_model_pt, const std::string& path_secondary_model);
-    /* Half data constructor. Loads the NN model in memory and wait for values of p and T to compute fluid properties. */
+    /* Half-way data constructor. Loads the NN model in memory and wait for values of p and T to compute g derivatives. */
     NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model);
     ~NNPWS();
 
-    //memory allocations are performed here. Called by most constructors
+    /* Memory allocations are performed here. Called by most constructors */
     void setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model);
 
+    /* Set P and T and calculate g derivatives */
     void setPT(double p, double T);
     //void setPH(double p, double h);    //computes        T_, then call setPT(p_,T_)
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
