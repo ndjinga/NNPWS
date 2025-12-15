@@ -154,7 +154,19 @@ public:
     double getCp() const { if (valid_) return -T_ * g_derivatives_.d2G_dT2;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/(kg.K)
 
-    //To do : getCrho() et getSoundSpeed()
+    /** \fn getCrho
+     * \brief  get the Isochoric heat capacity (in kJ/(kg.K)) associated to the fluid state
+     * \details Should be called after loading of model and setting of input pair value
+     * \param [out] double, Isochoric heat capacity
+     *  */
+    //To do : getCrho()
+
+    /** \fn getSoundSpeed
+     * \brief  get the sound speed (in m/s) associated to the fluid state
+     * \details Should be called after loading of model and setting of input pair value
+     * \param [out] double, the sound speed
+     *  */
+    //To do getSoundSpeed()
     
     double getdV_dP() const { if (valid_) return g_derivatives_.d2G_dP2 * 1e-3;
         throw std::runtime_error("variable PT not set use setPT() first"); }
