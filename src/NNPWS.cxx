@@ -56,6 +56,7 @@ void NNPWS::setPT(double p, double T) {
     {
         this->p_ = p;
         this->T_ = T;
+        inputPair_ = PT;
         this->calculateG_derivatives();
     }
 }
