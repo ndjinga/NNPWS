@@ -13,8 +13,11 @@ enum inputPair { PT, PH, RhoE };
 
 class NNPWS {
 public:
+    /* Default constructor. Does not load the NN model. Used to save memory. */
     NNPWS();
+    /* Full data constructor. Loads the NN model in memory and computes fluid properties. */
     NNPWS(inputPair varnames, double p, double T, const std::string& path_main_model_pt="ressources/PT.jit", const std::string& path_secondary_model = "");
+    /* Half data constructor. Loads the NN model in memory and wait for values of p and T to compute fluid properties. */
     NNPWS(const std::string& path_main_model_pt="ressources/PT.jit", const std::string& path_secondary_model = "");
     ~NNPWS();
 
@@ -24,22 +27,34 @@ public:
     //void setPH(double p, double h);    //computes        T_, then call setPT(p_,T_)
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
 
+    /* Pressure in MPa */
     double getPressure() const { return p_; }     // MPa
+    /* Temperature in Kelvin */
     double getTemperature() const { return T_; }  // K
+    /* Gibbs Free energy in KJ/Kg */
     double getGibbs() const { return g_derivatives_.G; }        // kJ/kg
+    /* Entropy in kJ/(kg.K) */
     double getEntropy() const { return -g_derivatives_.dG_dT; }      // kJ/(kg.K)
+    /* Volume in m3/kg */
     double getVolume() const { return g_derivatives_.dG_dP * 1e-3; }       // m3/kg
+    /* Density in kg/m3 */
     double getDensity() const { return 1/getVolume(); }    // kg/m3  // volume is non zero because of earlier check in function  calculate
+    /* Isobaric heat capacity in kJ/(kg.K) */
     double getCp() const { return -T_ * g_derivatives_.d2G_dT2; }          // kJ/(kg.K)
+    
     double getdV_dP() const { return g_derivatives_.d2G_dP2 * 1e-3;}
+    /* Compressibilité isotherme in 1/MPa */
+    double getCompressibiliteIsotherme() const { return -getDensity() * getdV_dP(); }    // 1/MPa
     double getKappa() const { return -getDensity() * getdV_dP(); }    // 1/MPa
+    
     bool isValid() const { return valid_; }
 
-
+    /* Load the model and compute many (P,T) pairs at once. output contain g derivatives and can be used to retrieve other fluid properties. Model is not loaded in order to save memory. */
     static void compute_batch(const std::vector<double>& p_list, 
                               const std::vector<double>& T_list, 
                               std::vector<NNPWS>& results,
-                              const std::string& path_main_model_pt="ressources/PT.jit");
+                              const std::string& path_main_model_pt="ressources/PT.jit",
+                              const std::string& path_secondary_model);
 
 private:
     FastInference fast_engine_; //For single calculations
@@ -59,7 +74,7 @@ private:
     bool valid_ = false;
     double precision_ = 1e-12;
 
-    void calculate();
+    void calculateG_derivatives();
 };
 
 #endif // NNPWS_NNPWS_HXX

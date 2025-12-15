@@ -4,9 +4,9 @@
 #include <stdexcept>
 
 
-NNPWS::NNPWS() : valid_(false); {}//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
+NNPWS::NNPWS() : valid_(false), is_initialized_(false) {}//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
 
-NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false) {
+NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false), is_initialized_(false) {
     setNeuralNetworks( path_main_model_pt, path_secondary_model);
     
     switch(varnames)
@@ -19,7 +19,7 @@ NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& pa
      
 }
 
-NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) ) : valid_(false) 
+NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) ) : valid_(false), is_initialized_(false) 
 {
 	setNeuralNetworks( path_main_model_pt, path_secondary_model);
 }
@@ -59,14 +59,14 @@ void NNPWS::setPT(double p, double T) {
     {
         this->p_ = p;
         this->T_ = T;
-        this->calculate();
+        this->calculateG_derivatives();
     }
 }
 
-void NNPWS::calculate() {
+void NNPWS::calculateG_derivatives() {
     valid_ = false;
 
-    if (!is_initialized_) return;//throw exception
+    if (!is_initialized_) return;//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model) 
 
     Region r = Regions_Boundaries::determine_region(T_, p_);
     if (r == out_of_regions) return;//throw exception
@@ -74,8 +74,8 @@ void NNPWS::calculate() {
     g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
  
     /* Check volume is non zero */
-    //if (std::abs(vol) < precision_) 
-    //throw exception
+    if (std::abs(vol) < precision_) 
+        return -1;//throw exception
 
     valid_ = true;
 }
@@ -83,12 +83,16 @@ void NNPWS::calculate() {
 void NNPWS::compute_batch(const std::vector<double>& p_list,
                           const std::vector<double>& T_list,
                           std::vector<NNPWS>& results,
-                          const std::string& path_main_model_pt) {
+                          const std::string& path_main_model_pt,
+                          const std::string& path_secondary_model) {
 
-    if (!is_initialized_ || !module_pt_) {
-        std::cerr << "[NNPWS] Erreur Critique : Le modèle n'est pas initialisé. Appelez NNPWS::setNeuralNetworks() d'abord." << std::endl;
-        throw std::runtime_error("Modèle non initialisé");
+    if (!ModelLoader::instance().load(path_main_model_pt)) {
+
+        std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
+        return -1;//throw exception
     }
+    std::shared_ptr<torch::jit::script::Module>  module_pt = ModelLoader::instance().get_model(path_main_model_pt);
+
 
     if (p_list.size() != T_list.size()) {
         std::string err_msg = "[NNPWS] Erreur de dimension : p_list (" + std::to_string(p_list.size()) +
@@ -133,7 +137,7 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
             inputs.emplace_back(input_tensor);
             inputs.emplace_back(reg_id);
 
-            torch::Tensor output = module_pt_->get_method("compute_derivatives_batch")(inputs).toTensor();
+            torch::Tensor output = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
             auto acc = output.accessor<double, 2>();
 
             for (size_t k = 0; k < n_reg; ++k) {
@@ -148,8 +152,13 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
                 vol = obj.getVolume() * 1e-3;//now check if non zero
 
                 /* check volume is non zero */
-                //if (std::abs(vol) < precision_) 
-                    //throw exception
+                if (std::abs(vol) < precision_) 
+                    return -1;//throw exception
+
+            	obj.path_main_model_pt_   = path_main_model_pt;
+                obj.path_secondary_model_ = path_secondary_model;
+                
+                obj.is_initialized_ = false;
                 obj.valid_ = true;
             }
 
