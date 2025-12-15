@@ -29,7 +29,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 add_library(NNPWSLib SHARED ${MY_SOURCES})
 target_link_libraries(NNPWSLib "${TORCH_LIBRARIES}")
-target_include_directories(NNPWSLib PRIVATE ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
+target_include_directories(NNPWSLib PUBLIC ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
 install(TARGETS NNPWSLib DESTINATION lib)
 install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include) #
 
@@ -46,8 +46,9 @@ if( NNPWS_WITH_PYTHON )
 endif( NNPWS_WITH_PYTHON )
 
 if( NNPWS_WITH_TESTS )
- enable_testing ()
+ enable_testing()
  add_subdirectory(tests)
+ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/models DESTINATION ${CMAKE_BINARY_DIR})
 endif( NNPWS_WITH_TESTS )
 
 # Find and use Doxygen for documentation

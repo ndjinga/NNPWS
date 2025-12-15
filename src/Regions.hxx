@@ -61,7 +61,7 @@ public:
     static Region determine_region(double T, double P) {
         if (T < 273.15) return out_of_regions;
         if (T > 1073.15) return r5; // Haute température (Région 5)
-        if (P > 100.0) return out_of_regions;
+        if (P > 100.0 || P < 0.000611) return out_of_regions;
 
         if (T <= 623.15) {
             // Si on est en dessous de 350°C (623.15K)
