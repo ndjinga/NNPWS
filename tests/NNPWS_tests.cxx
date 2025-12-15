@@ -72,10 +72,13 @@ struct IAPWS_Point {
     double kappa; // 1/MPa
 };
 
-void check_point(const IAPWS_Point& ref, double d1, double d2) {
-    NNPWS w(ref.P, ref.T);
+NNPWS nnpws("../resources/models/DNN_TP_v6.pt", "");
 
-    if (!w.isValid()) {
+void check_point(const IAPWS_Point& ref, double d1, double d2) {
+    //NNPWS w(inputPair::PT, ref.P, ref.T, "../resources/models/DNN_TP_v6.pt", "");
+    nnpws.setPT(ref.P, ref.T);
+
+    if (!nnpws.isValid()) {
         std::cout << COL_RED "[FAIL] Point invalide (Hors region) : P=" << ref.P << " T=" << ref.T << COL_RESET << std::endl;
         g_tests_failed++;
         return;
@@ -83,16 +86,16 @@ void check_point(const IAPWS_Point& ref, double d1, double d2) {
 
     // 1. Densité
     double rho_ref = 1.0 / ref.v;
-    EXPECT_NEAR(w.getDensity(), rho_ref, d1);
+    EXPECT_NEAR(nnpws.getDensity(), rho_ref, d1);
 
     // 2. Entropie
-    EXPECT_NEAR(w.getEntropy(), ref.s, d1);
+    EXPECT_NEAR(nnpws.getEntropy(), ref.s, d1);
 
     // 3. Cp
-    EXPECT_NEAR(w.getCp(), ref.cp, d2);
+    EXPECT_NEAR(nnpws.getCp(), ref.cp, d2);
 
     // 4. kappa
-    EXPECT_NEAR(w.getKappa(), ref.kappa, d2);
+    EXPECT_NEAR(nnpws.getKappa(), ref.kappa, d2);
 }
 
 
@@ -103,10 +106,10 @@ bool global_setup(const std::string& model_path) {
     std::cout << "[SETUP] Chargement du modele : " << model_path << std::endl;
 
     g_abs_tol = 1e-2;
-    if (NNPWS::init(model_path) != 0) {
-        std::cerr << COL_RED "FATAL: Impossible de charger le fichier .pt" COL_RESET << std::endl;
-        return false;
-    }
+    //if (NNPWS::init(model_path) != 0) {
+    //    std::cerr << COL_RED "FATAL: Impossible de charger le fichier .pt" COL_RESET << std::endl;
+    //    return false;
+    //}
     loaded = true;
     return true;
 }
@@ -142,23 +145,23 @@ TEST(Region2, Point_1070K_15MPa) {
 // TESTS BATCH
 
 TEST(Systeme, BatchConsistency) {
-    std::vector<double> P = {3.0, 80.0, 0.0035, 30.0};
-    std::vector<double> T = {300.0, 300.0, 300.0, 700.0};
+    const std::vector<double> P = {3.0, 80.0, 0.0035, 30.0};
+    const std::vector<double> T = {300.0, 300.0, 300.0, 700.0};
     std::vector<NNPWS> res;
 
-    NNPWS::compute_batch(P, T, res);
+    NNPWS::compute_batch_PT(P, T, res, "../resources/models/DNN_TP_v6.pt");
 
     for(size_t i=0; i<P.size(); ++i) {
-        NNPWS u(P[i], T[i]);
-        if(u.isValid() && res[i].isValid()) {
-            EXPECT_NEAR(u.getDensity(), res[i].getDensity(), 1e-5);
-            EXPECT_NEAR(u.getCp(), res[i].getCp(), 1e-5);
+        nnpws.setPT(P.at(i), T.at(i));
+        if(nnpws.isValid() && res[i].isValid()) {
+            EXPECT_NEAR(nnpws.getDensity(), res[i].getDensity(), 1e-5);
+            EXPECT_NEAR(nnpws.getCp(), res[i].getCp(), 1e-5);
         }
     }
 }
 
 int main(int argc, char** argv) {
-    if (!global_setup("../models/DNN_TP_v6.pt")) return -1;
+    //if (!global_setup("../models/DNN_TP_v6.pt")) return -1;
 
     std::string filter = (argc > 1) ? argv[1] : "";
     if (!filter.empty()) std::cout << ">>> FILTRE: " << filter << std::endl;

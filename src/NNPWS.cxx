@@ -3,36 +3,34 @@
 #include <map>
 #include <stdexcept>
 
-
-NNPWS::NNPWS() : valid_(false), is_initialized_(false) {}//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
+//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
+NNPWS::NNPWS() : valid_(false), is_initialized_(false) {}
 
 NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false), is_initialized_(false) {
-    setNeuralNetworks( path_main_model_pt, path_secondary_model);
+    setNeuralNetworks(path_main_model_pt, path_secondary_model);
     
     switch(varnames)
     {
-        case PT   : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
+        case PT : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
         //case PH   : setPH(  var1, var2); break;
         //case RhoE : setRhoE(var1, var2); break;
-        default : throw exception not yet implemented
+        default : throw std::runtime_error("not implemented");
     }
      
 }
 
-NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) ) : valid_(false), is_initialized_(false) 
+NNPWS::NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) : valid_(false), is_initialized_(false)
 {
-	setNeuralNetworks( path_main_model_pt, path_secondary_model);
+	setNeuralNetworks(path_main_model_pt, path_secondary_model);
 }
 
 NNPWS::~NNPWS() = default;
 
-int NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
-    if ( path_main_model_pt==path_main_model_pt && path_secondary_model==path_secondary_model) return 0;
-
+void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
     if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        return -1;//throw exception
+        throw std::runtime_error("impossible de charger le modele pt");
     }
     module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
 
@@ -44,18 +42,16 @@ int NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::s
     } catch (const std::exception& e) {
 
         std::cerr << "[NNPWS] Erreur init FastInference: " << e.what() << std::endl;
-        return -1;//throw exception
+        throw std::runtime_error("fichier .pt non valide");
     }
 
 	path_main_model_pt_   = path_main_model_pt;
 	path_secondary_model_ = path_secondary_model;
-
-    return 0;
 }
 
 void NNPWS::setPT(double p, double T) {
 	
-	if( this->p_ != p || this->T_ != T )
+	if(this->p_ != p || this->T_ != T || !isValid())
     {
         this->p_ = p;
         this->T_ = T;
@@ -66,32 +62,31 @@ void NNPWS::setPT(double p, double T) {
 void NNPWS::calculateG_derivatives() {
     valid_ = false;
 
-    if (!is_initialized_) return;//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model) 
+    if (!is_initialized_) throw std::runtime_error("model not set call setNeuralNetworks(path_main_model_pt, path_secondary_model)");//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model)
 
-    Region r = Regions_Boundaries::determine_region(T_, p_);
-    if (r == out_of_regions) return;//throw exception
+    const Region r = Regions_Boundaries::determine_region(T_, p_);
+    if (r == out_of_regions) throw std::runtime_error("TP out of region"); //throw exception
 
-    g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
+    g_derivatives_ = fast_engine_.compute(r, p_, T_);
  
     /* Check volume is non zero */
-    if (std::abs(vol) < precision_) 
-        return -1;//throw exception
+    if (std::abs(g_derivatives_.dG_dP) < precision_)
+        throw std::runtime_error("volume close to 0");//throw exception
 
     valid_ = true;
 }
 
-void NNPWS::compute_batch(const std::vector<double>& p_list,
+void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
                           const std::vector<double>& T_list,
                           std::vector<NNPWS>& results,
-                          const std::string& path_main_model_pt,
-                          const std::string& path_secondary_model) {
+                          const std::string& path_main_model_pt) {
 
     if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        return -1;//throw exception
+        throw std::runtime_error("impossible de charger le modele pt");
     }
-    std::shared_ptr<torch::jit::script::Module>  module_pt = ModelLoader::instance().get_model(path_main_model_pt);
+    std::shared_ptr<torch::jit::script::Module> module_pt = ModelLoader::instance().get_model(path_main_model_pt);
 
 
     if (p_list.size() != T_list.size()) {
@@ -143,23 +138,24 @@ void NNPWS::compute_batch(const std::vector<double>& p_list,
             for (size_t k = 0; k < n_reg; ++k) {
                 size_t original_idx = indices[k];
                 NNPWS& obj = results[original_idx];
+                obj.is_initialized_ = false;
+                obj.valid_ = true;
 
                 obj.p_ = p_list[original_idx];
                 obj.T_ = T_list[original_idx];
                 
-                obj.g_derivatives = FastResult(acc[k][0],acc[k][1],acc[k][2],acc[k][3],acc[k][4],acc[k][5])
+                obj.g_derivatives_ = FastResult{acc[k][0], acc[k][2], acc[k][1], acc[k][5], acc[k][3], acc[k][4]};
 
-                vol = obj.getVolume() * 1e-3;//now check if non zero
+                vol = obj.getVolume() * 1e-3;   // now check if non zero
 
                 /* check volume is non zero */
-                if (std::abs(vol) < precision_) 
-                    return -1;//throw exception
+                if (std::abs(vol) < obj.precision_)
+                    throw std::runtime_error("volume close to 0");
 
             	obj.path_main_model_pt_   = path_main_model_pt;
-                obj.path_secondary_model_ = path_secondary_model;
+                // obj.path_secondary_model_ = path_secondary_model;
                 
-                obj.is_initialized_ = false;
-                obj.valid_ = true;
+
             }
 
         } catch (const c10::Error& e) {

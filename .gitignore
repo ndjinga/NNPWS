@@ -1,4 +1,4 @@
 .idea/
-models/
+resources/models/
 src/main.cxx
 build/
