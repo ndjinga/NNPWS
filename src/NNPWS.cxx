@@ -3,12 +3,13 @@
 #include <map>
 #include <stdexcept>
 
-//This constructor requires explicit call to init by the user unlike the other constructors. Use only if you want to delay the memory allocation
-NNPWS::NNPWS() : valid_(false), is_initialized_(false) {}
+//This constructor requires explicit call to setNeuralNetworks by the user, unlike the other constructors. Use only if you want to delay the memory allocation
+NNPWS::NNPWS(inputPair varnames) : valid_(false), is_initialized_(false) {inputPair_ = varnames;}
 
 NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false), is_initialized_(false) {
     setNeuralNetworks(path_main_model_pt, path_secondary_model);
-    
+    inputPair_ = varnames;
+        
     switch(varnames)
     {
         case PT : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
@@ -16,10 +17,9 @@ NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& pa
         //case RhoE : setRhoE(var1, var2); break;
         default : throw std::runtime_error("not implemented");
     }
-     
 }
 
-NNPWS::NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) : valid_(false), is_initialized_(false)
+NNPWS::NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) : valid_(false), is_initialized_(false), inputPair_(Undefined)
 {
 	setNeuralNetworks(path_main_model_pt, path_secondary_model);
 }
@@ -27,6 +27,7 @@ NNPWS::NNPWS(const std::string& path_main_model_pt, const std::string& path_seco
 NNPWS::~NNPWS() = default;
 
 void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
+    //What if the model is already loaded ? Should we not check if the path file is identical ?
     if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
@@ -55,6 +56,7 @@ void NNPWS::setPT(double p, double T) {
     {
         this->p_ = p;
         this->T_ = T;
+        inputPair_ = PT;
         this->calculateG_derivatives();
     }
 }
@@ -103,13 +105,13 @@ void NNPWS::calculateG_derivatives() {
     if (!is_initialized_) throw std::runtime_error("model not set call setNeuralNetworks(path_main_model_pt, path_secondary_model)");//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model)
 
     const Region r = Regions_Boundaries::determine_region(T_, p_);
-    if (r == out_of_regions) throw std::runtime_error("TP out of region"); //throw exception
+    if (r == out_of_regions) throw std::runtime_error("TP out of region"); 
 
     g_derivatives_ = fast_engine_.compute(r, p_, T_);
  
     /* Check volume is non zero */
     if (std::abs(g_derivatives_.dG_dP) < precision_)
-        throw std::runtime_error("volume close to 0");//throw exception
+        throw std::runtime_error("volume close to 0");
 
     valid_ = true;
 }
