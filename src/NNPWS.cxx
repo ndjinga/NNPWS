@@ -12,7 +12,7 @@ NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& pa
     switch(varnames)
     {
         case PT : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
-        //case PH   : setPH(  var1, var2); break;
+        case PH : setPH(  var1, var2); break;
         //case RhoE : setRhoE(var1, var2); break;
         default : throw std::runtime_error("not implemented");
     }
@@ -58,6 +58,44 @@ void NNPWS::setPT(double p, double T) {
         this->calculateG_derivatives();
     }
 }
+
+void NNPWS::setPH(double p, double h)
+{
+    if (!is_initialized_)
+        throw std::runtime_error("model not set call setNeuralNetworks");
+
+    if (path_secondary_model_.empty())
+        throw std::runtime_error("modelPH not set call setNeuralNetworks");
+
+    if (!ModelLoader::instance().load(path_secondary_model_))
+        throw std::runtime_error("failed to load secondary model: " + path_secondary_model_);
+
+    auto module_ph = ModelLoader::instance().get_model(path_secondary_model_);
+    if (!module_ph)
+        throw std::runtime_error("secondary model not available after load: " + path_secondary_model_);
+
+    std::vector<double> flat = { p, h };
+    torch::Tensor x = torch::from_blob(flat.data(), {1, 2}, torch::kDouble).clone();
+
+    double T = 0.0;
+    try {
+        std::vector<torch::jit::IValue> inputs;
+        inputs.emplace_back(x);
+
+        torch::Tensor out = module_ph->get_method("compute_T_batch")(inputs).toTensor();
+
+        if (out.dim() == 2)      T = out[0][0].item<double>();
+        else if (out.dim() == 1) T = out[0].item<double>();
+        else throw std::runtime_error("PH->T output has unexpected dim");
+    }
+    catch (const c10::Error& e) {
+        std::cerr << "[NNPWS] Erreur inference PH->T: " << e.what() << std::endl;
+        throw;
+    }
+
+    setPT(p, T);
+}
+
 
 void NNPWS::calculateG_derivatives() {
     valid_ = false;

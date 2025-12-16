@@ -25,6 +25,9 @@ public:
     void setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model);
 
     void setPT(double p, double T);
+
+    void setPH(double p, double h);
+
     //void setPH(double p, double h);    //computes        T_, then call setPT(p_,T_)
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
 

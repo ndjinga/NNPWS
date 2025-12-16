@@ -48,7 +48,7 @@ endif( NNPWS_WITH_PYTHON )
 if( NNPWS_WITH_TESTS )
  enable_testing()
  add_subdirectory(tests)
- file(COPY resources/models DESTINATION ${CMAKE_BINARY_DIR})
+ file(COPY resources DESTINATION ${CMAKE_BINARY_DIR})
 endif( NNPWS_WITH_TESTS )
 
 # Find and use Doxygen for documentation

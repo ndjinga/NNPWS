@@ -72,7 +72,7 @@ struct IAPWS_Point {
     double kappa; // 1/MPa
 };
 
-NNPWS nnpws("../resources/models/DNN_TP_v6.pt", "");
+NNPWS nnpws("../resources/models/DNN_TP_v8.pt", "");
 
 void check_point(const IAPWS_Point& ref, double d1, double d2) {
     //NNPWS w(inputPair::PT, ref.P, ref.T, "../resources/models/DNN_TP_v6.pt", "");
@@ -86,16 +86,20 @@ void check_point(const IAPWS_Point& ref, double d1, double d2) {
 
     // 1. Densité
     double rho_ref = 1.0 / ref.v;
-    EXPECT_NEAR(nnpws.getDensity(), rho_ref, d1);
+    double rho_calc = nnpws.getDensity();
+    EXPECT_NEAR(rho_calc, rho_ref, d1);
 
     // 2. Entropie
-    EXPECT_NEAR(nnpws.getEntropy(), ref.s, d1);
+    double s_calc = nnpws.getEntropy();
+    EXPECT_NEAR(s_calc, ref.s, d1);
 
     // 3. Cp
-    EXPECT_NEAR(nnpws.getCp(), ref.cp, d2);
+    double cp_calc = nnpws.getCp();
+    EXPECT_NEAR(cp_calc, ref.cp, d2);
 
     // 4. kappa
-    EXPECT_NEAR(nnpws.getKappa(), ref.kappa, d2);
+    double kappa_calc = nnpws.getKappa();
+    EXPECT_NEAR(kappa_calc, ref.kappa, d2);
 }
 
 
@@ -149,7 +153,7 @@ TEST(Systeme, BatchConsistency) {
     const std::vector<double> T = {300.0, 300.0, 300.0, 700.0};
     std::vector<NNPWS> res;
 
-    NNPWS::compute_batch_PT(P, T, res, "../resources/models/DNN_TP_v6.pt");
+    NNPWS::compute_batch_PT(P, T, res, "../resources/models/DNN_TP_v8.pt");
 
     for(size_t i=0; i<P.size(); ++i) {
         nnpws.setPT(P.at(i), T.at(i));
