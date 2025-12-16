@@ -13,7 +13,7 @@ enum inputPair { PT, PH, RhoE, Undefined };
 
 class NNPWS {
 public:
-    /** \fn NNPWS()
+    /** \fn NNPWS
      * \brief Basic constructor
      * \details Does not load the NN model. Used to save memory
      * \param [in] inputPair
@@ -49,24 +49,23 @@ public:
 
     /** \fn setPT
      * \brief  Set Pressure and Temperature and calculate g derivatives
-     * \details Path to NN should be set before, otherwise exception raised
-     * \param [in] double, pressure
-     * \param [in] double, temperature
+     * \details Path to the neural network file should be set before, otherwise exception raised
+     * \param [in] double, pressure  in MPa
+     * \param [in] double, temperature in Kelvin
      *  */
-    /* Set P and T and calculate g derivatives */
     void setPT(double p, double T);
-    /** \fn setPT
+    /** \fn setPH
      * \brief  Set Pressure and Enthalpy and calculate g derivatives
-     * \details Path to NN should be set before, otherwise exception raised
-     * \param [in] double, pressure
-     * \param [in] double, enthalpy
+     * \details Path to the neural network file should be set before, otherwise exception raised
+     * \param [in] double, pressure in MPa
+     * \param [in] double, enthalpy in kJ/Kg
      *  */
-    //void setPH(double p, double h);    //computes        T_, then call setPT(p_,T_)
+    void setPH(double p, double h);
     /** \fn setRhoE
      * \brief  Set Density and Internal energy and calculate g derivatives
-     * \details Path to NN should be set before, otherwise exception raised
-     * \param [in] double, density
-     * \param [in] double, internal energy
+     * \details Path to the neural network file should be set before, otherwise exception raised
+     * \param [in] double, density in  kg/m3
+     * \param [in] double, internal energy in kJ/Kg
      *  */
     //void setRhoE(double rho, double e);//computes p_ and T_, then call setPT(p_,T_)
     /** \fn setInputPair
@@ -85,7 +84,7 @@ public:
     /** \fn getPressure
      * \brief  get the pressure (in MPa) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the pressure
+     * \param [out] double, the pressure in MPa
      *  */
     double getPressure() const { if (valid_) return p_;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // MPa
@@ -93,15 +92,15 @@ public:
     /** \fn getTemperature
      * \brief  get the temperature (in Kelvin) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the temperature
+     * \param [out] double, the temperature in Kelvin
      *  */
     double getTemperature() const { if (valid_) return T_;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // K
 
     /** \fn getGibbs
-     * \brief  get the Gibbs free energy (in KJ/Kg) associated to the fluid state
+     * \brief  get the Gibbs free energy (in kJ/Kg) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Gibbs free energy
+     * \param [out] double, the Gibbs free energy in kJ/Kg
      *  */
     double getGibbs() const { if (valid_) return g_derivatives_.G;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/kg
@@ -109,23 +108,23 @@ public:
     /** \fn getEntropy
      * \brief  get the Entropy (in kJ/(kg.K)) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Entropy
+     * \param [out] double, the entropy in kJ/(kg.K)
      *  */
     double getEntropy() const { if (valid_) return -g_derivatives_.dG_dT;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/(kg.K)
 
     /** \fn getVolume
-     * \brief  get the Volume (in m3/kg)) associated to the fluid state
+     * \brief  get the Volume (in m3/kg) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Volume
+     * \param [out] double, the volume in m3/kg
      *  */
     double getVolume() const { if (valid_) return g_derivatives_.dG_dP * 1e-3;
         throw std::runtime_error("variable PT not set use setPT() first"); }    // m3/kg
 
     /** \fn getDensity
-     * \brief  get the Density (in kg/m3)) associated to the fluid state
+     * \brief  get the Density (in kg/m3) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Density
+     * \param [out] double, the density in kg/m3
      *  */
     double getDensity() const { if (valid_) return 1/getVolume();
         throw std::runtime_error("variable PT not set use setPT() first"); }    // kg/m3 volume is non zero because of earlier check in function calculate
@@ -133,38 +132,38 @@ public:
     /** \fn getEnthalpy
      * \brief  get the Enthalpy (in kJ/kg) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Enthalpy
+     * \param [out] double, the enthalpy in kJ/kg
      *  */
     double getEnthalpy() const { if (valid_) return g_derivatives_.G - T_*g_derivatives_.dG_dT;
-        throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/(kg.K)
+        throw std::runtime_error("variable PT not set use setPT() first"); } 
 
     /** \fn getInternalEnergy
      * \brief  get the Internal Energy (in kJ/kg) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the Internal Energy
+     * \param [out] double, the internal energy in kJ/kg
      *  */
     double getInternalEnergy() const { if (valid_) return getEnthalpy() - p_ * getVolume();
-        throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/(kg.K)
+        throw std::runtime_error("variable PT not set use setPT() first"); }
 
     /** \fn getCp
      * \brief  get the Isobaric heat capacity (in kJ/(kg.K)) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, Isobaric heat capacity
+     * \param [out] double, isobaric heat capacity in kJ/(kg.K)
      *  */
     double getCp() const { if (valid_) return -T_ * g_derivatives_.d2G_dT2;
-        throw std::runtime_error("variable PT not set use setPT() first"); }    // kJ/(kg.K)
+        throw std::runtime_error("variable PT not set use setPT() first"); }
 
     /** \fn getCrho
      * \brief  get the Isochoric heat capacity (in kJ/(kg.K)) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, Isochoric heat capacity
+     * \param [out] double, Isochoric heat capacity in kJ/(kg.K)
      *  */
     //To do : getCrho()
 
     /** \fn getSoundSpeed
      * \brief  get the sound speed (in m/s) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, the sound speed
+     * \param [out] double, the sound speed in m/s
      *  */
     //To do getSoundSpeed()
     
@@ -174,9 +173,8 @@ public:
     /** \fn getCompressibiliteIsotherme
      * \brief  get the Isothermal Compressibility (in 1/MPa) associated to the fluid state
      * \details Should be called after loading of model and setting of input pair value
-     * \param [out] double, Isothermal Compressibility
+     * \param [out] double, isothermal compressibility in 1/MPa
      *  */
-    /* Compressibilité isotherme in 1/MPa */
     double getIsothermalCompressibility() const { if (valid_) return -getDensity() * getdV_dP();
         throw std::runtime_error("variable PT not set use setPT() first"); }    // 1/MPa
 
