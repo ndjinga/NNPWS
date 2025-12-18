@@ -72,7 +72,7 @@ struct IAPWS_Point {
     double kappa; // 1/MPa
 };
 
-NNPWS nnpws("../resources/models/DNN_TP_v8.pt", "");
+NNPWS nnpws(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
 
 void check_point(const IAPWS_Point& ref, double d1, double d2) {
     //NNPWS w(inputPair::PT, ref.P, ref.T, "../resources/models/DNN_TP_v6.pt", "");
@@ -188,6 +188,9 @@ int main(int argc, char** argv) {
             std::cout << "\r" << COL_GREEN << "[OK\t\t] " << test.first << std::string(15, ' ') << COL_RESET << std::endl;
         }
     }
+
+    NNPWS p{PH,"../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH.pt"};
+    p.setPH(8.0, 3634.8495869697945);
 
     std::cout << "========================================================" << std::endl;
     std::cout << "Tests: " << run_count << " | Passed: " << g_tests_passed << std::endl;

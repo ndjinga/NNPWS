@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <torch/script.h>
+#include <optional>
 #include "FastInference.hxx"
 #include "Regions.hxx"
 #include "ModelLoader.hxx"
@@ -28,14 +29,14 @@ public:
      * \param [in] string, path to the main neural network file
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      *  */
-    NNPWS(inputPair varnames, double first, double second, const std::string& path_main_model_pt, const std::string& path_secondary_model);
+    NNPWS(inputPair varnames, double first, double second, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model);
     /** \fn NNPWS
      * \brief Half-way data constructor
      * \details Loads the NN model in memory and wait for values of p and T to compute g derivatives
      * \param [in] string, path to the main neural network file
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      *  */
-    NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model);
+    NNPWS(inputPair varnames, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model);
     ~NNPWS();
 
     /** \fn setNeuralNetworks
@@ -45,7 +46,7 @@ public:
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      * \param [out] void
      *  */
-    void setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model);
+    void setNeuralNetworks(const std::string &path_main_model_pt, const std::optional<const std::string> &path_secondary_model);
 
     /** \fn setPT
      * \brief  Set Pressure and Temperature and calculate g derivatives
@@ -191,10 +192,12 @@ public:
 
 private:
     FastInference fast_engine_; //For single calculations
+    FastInference fast_engine_backward_;
     FastResult g_derivatives_;
     std::shared_ptr<torch::jit::script::Module> module_pt_; //for batch or gpu calculations
     bool is_initialized_ = false;
 
+    double h_ = 0.0;
     double p_ = 0.0;
     double T_ = 0.0;
     inputPair inputPr_ = Undefined;
@@ -202,7 +205,7 @@ private:
     //Path to the main neural network, the one that computes g and its derivatives from P and T
     std::string path_main_model_pt_ = "resources/models/DNN_TP_v6.pt";
     //Path to the secondary neural network, the one that computes (P,T) from (P,h) or (rho, e) depending on the enum inputPair
-    std::string path_secondary_model_;
+    std::string path_secondary_model_ = "resources/models/DNN_Backward_PH.pt";
 
     bool valid_ = false;
     double precision_ = 1e-12;

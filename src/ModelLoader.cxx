@@ -28,7 +28,7 @@ bool ModelLoader::load(const std::string& path) {
     }
     catch (const c10::Error& e) {
         std::cerr << "[ModelLoader] Erreur critique de chargement pour " << path << std::endl;
-        //std::cerr << "[ModelLoader] Erreur critique: " << e.what() << std::endl;
+        std::cerr << "[ModelLoader] Erreur critique: " << e.what() << std::endl;
         return false;
     }
 }

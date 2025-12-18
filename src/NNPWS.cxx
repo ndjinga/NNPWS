@@ -4,11 +4,11 @@
 #include <stdexcept>
 
 //This constructor requires explicit call to setNeuralNetworks by the user, unlike the other constructors. Use only if you want to delay the memory allocation
-NNPWS::NNPWS(inputPair varnames) : valid_(false), is_initialized_(false) {inputPair_ = varnames;}
+NNPWS::NNPWS(inputPair varnames) : valid_(false), is_initialized_(false), inputPr_(varnames){}
 
-NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::string& path_secondary_model ) : valid_(false), is_initialized_(false) {
+NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model)
+: valid_(false), is_initialized_(false), inputPr_(varnames) {
     setNeuralNetworks(path_main_model_pt, path_secondary_model);
-    inputPair_ = varnames;
         
     switch(varnames)
     {
@@ -19,14 +19,14 @@ NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& pa
     }
 }
 
-NNPWS::NNPWS(const std::string& path_main_model_pt, const std::string& path_secondary_model) : valid_(false), is_initialized_(false), inputPair_(Undefined)
+NNPWS::NNPWS(inputPair varnames, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model) : valid_(false), is_initialized_(false), inputPr_(varnames)
 {
 	setNeuralNetworks(path_main_model_pt, path_secondary_model);
 }
 
 NNPWS::~NNPWS() = default;
 
-void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::string& path_secondary_model) {
+void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model) {
     //What if the model is already loaded ? Should we not check if the path file is identical ?
     if (!ModelLoader::instance().load(path_main_model_pt)) {
 
@@ -46,8 +46,27 @@ void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::
         throw std::runtime_error("fichier .pt non valide");
     }
 
+    if (inputPr_ == PH && path_secondary_model.has_value()) {
+        if (!ModelLoader::instance().load(*path_secondary_model)) {
+
+            //std::cerr << "[NNPWS] Erreur chargement modele PH." << std::endl;
+            //throw std::runtime_error("impossible de charger le modele ph");
+        } else {
+            try {
+                std::vector<int> regions = {1, 2, 3, 4, 5};
+                fast_engine_backward_.load_from_module(ModelLoader::instance().get_model(*path_secondary_model), regions);
+
+            } catch (const std::exception& e) {
+
+                std::cerr << "[NNPWS] Erreur init FastInferenceBackward: " << e.what() << std::endl;
+                throw std::runtime_error("fichier .pt non valide");
+            }
+        }
+
+        path_secondary_model_ = *path_secondary_model;
+    }
+
 	path_main_model_pt_   = path_main_model_pt;
-	path_secondary_model_ = path_secondary_model;
 }
 
 void NNPWS::setPT(double p, double T) {
@@ -56,7 +75,7 @@ void NNPWS::setPT(double p, double T) {
     {
         this->p_ = p;
         this->T_ = T;
-        inputPair_ = PT;
+        inputPr_ = PT;
         this->calculateG_derivatives();
     }
 }
@@ -66,34 +85,19 @@ void NNPWS::setPH(double p, double h)
     if (!is_initialized_)
         throw std::runtime_error("model not set call setNeuralNetworks");
 
-    if (path_secondary_model_.empty())
-        throw std::runtime_error("modelPH not set call setNeuralNetworks");
-
-    if (!ModelLoader::instance().load(path_secondary_model_))
-        throw std::runtime_error("failed to load secondary model: " + path_secondary_model_);
-
     auto module_ph = ModelLoader::instance().get_model(path_secondary_model_);
     if (!module_ph)
         throw std::runtime_error("secondary model not available after load: " + path_secondary_model_);
 
-    std::vector<double> flat = { p, h };
-    torch::Tensor x = torch::from_blob(flat.data(), {1, 2}, torch::kDouble).clone();
+    //Region r = Regions_Boundaries::determine_region_PH(p, h);
+    Region r = r2;
 
-    double T = 0.0;
-    try {
-        std::vector<torch::jit::IValue> inputs;
-        inputs.emplace_back(x);
-
-        torch::Tensor out = module_ph->get_method("compute_T_batch")(inputs).toTensor();
-
-        if (out.dim() == 2)      T = out[0][0].item<double>();
-        else if (out.dim() == 1) T = out[0].item<double>();
-        else throw std::runtime_error("PH->T output has unexpected dim");
+    if (r == out_of_regions) {
+        valid_ = false;
+        return;
     }
-    catch (const c10::Error& e) {
-        std::cerr << "[NNPWS] Erreur inference PH->T: " << e.what() << std::endl;
-        throw;
-    }
+
+    double T = fast_engine_backward_.compute_val(r, p, h);
 
     setPT(p, T);
 }
@@ -138,7 +142,7 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
 
     size_t n = p_list.size();
     results.clear();
-    results.resize(n);
+    results.resize(n, NNPWS(Undefined));
 
     std::map<int, std::vector<size_t>> region_indices;
     Region r;

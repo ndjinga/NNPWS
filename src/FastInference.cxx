@@ -200,3 +200,52 @@ FastResult FastInference::compute(int region_id, double p_real, double T_real) c
 
     return res;
 }
+
+double FastInference::compute_val(int region_id, double val1_real, double val2_real) const {
+    auto it = regions_map_.find(region_id);
+    if (it == regions_map_.end() || !it->second.is_valid) throw std::runtime_error("Region inconnue");
+    const RegionData& data = it->second;
+
+    size_t max_size = 0;
+    for(const auto& l : data.layers) max_size = std::max(max_size, static_cast<size_t>(l.rows));
+    max_size = std::max(max_size, static_cast<size_t>(2));
+
+    std::vector<double> buf(max_size);
+    std::vector<double> next_buf(max_size);
+
+    double H_val = val2_real;
+    double P_val = val1_real;
+
+    buf[0] = (H_val - data.in_mean[0]) / data.in_std[0];
+    buf[1] = (P_val - data.in_mean[1]) / data.in_std[1];
+
+
+    int n_curr = 2;
+
+    for (size_t l_idx = 0; l_idx < data.layers.size(); ++l_idx) {
+        const FastLayer& layer = data.layers[l_idx];
+        int n_next = layer.rows;
+        bool is_last = (l_idx == data.layers.size() - 1);
+
+        for (int r = 0; r < n_next; ++r) {
+            double sum = layer.biases[r];
+
+            for (int c = 0; c < n_curr; ++c) {
+                sum += layer.weights[r * n_curr + c] * buf[c];
+            }
+
+            if (is_last) {
+                next_buf[r] = sum;
+            } else {
+                next_buf[r] = std::tanh(sum);
+            }
+        }
+
+        for(int i=0; i<n_next; ++i) buf[i] = next_buf[i];
+        n_curr = n_next;
+    }
+
+    double result = buf[0] * data.out_std[0] + data.out_mean[0];
+
+    return result;
+}

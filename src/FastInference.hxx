@@ -44,6 +44,7 @@ public:
 
 
     FastResult compute(int region_id, double p, double T) const;
+    double compute_val(int region_id, double in1, double in2) const;
 
 private:
     std::map<int, RegionData> regions_map_;
