@@ -27,7 +27,6 @@ NNPWS::NNPWS(inputPair varnames, const std::string& path_main_model_pt, const st
 NNPWS::~NNPWS() = default;
 
 void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model) {
-    //What if the model is already loaded ? Should we not check if the path file is identical ?
     if (!ModelLoader::instance().load(path_main_model_pt)) {
 
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
@@ -46,26 +45,25 @@ void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::
         throw std::runtime_error("fichier .pt non valide");
     }
 
-    if (inputPr_ == PH && path_secondary_model.has_value()) {
+    if (inputPr_ == PH) {
+        if (!path_secondary_model.has_value()) throw std::runtime_error("PH input requires a secondary model");
+
         if (!ModelLoader::instance().load(*path_secondary_model)) {
 
-            //std::cerr << "[NNPWS] Erreur chargement modele PH." << std::endl;
-            //throw std::runtime_error("impossible de charger le modele ph");
-        } else {
-            try {
-                std::vector<int> regions = {1, 2, 3, 4, 5};
-                fast_engine_backward_.load_from_module(ModelLoader::instance().get_model(*path_secondary_model), regions);
+            std::cerr << "[NNPWS] Erreur chargement modele PH." << std::endl;
+            throw std::runtime_error("impossible de charger le modele ph");
+        }
 
-            } catch (const std::exception& e) {
+        try {
+            fast_engine_backward_.load_secondary_from_module(ModelLoader::instance().get_model(*path_secondary_model));
+        } catch (const std::exception& e) {
 
-                std::cerr << "[NNPWS] Erreur init FastInferenceBackward: " << e.what() << std::endl;
-                throw std::runtime_error("fichier .pt non valide");
-            }
+            std::cerr << "[NNPWS] Erreur init FastInferenceBackward: " << e.what() << std::endl;
+            throw std::runtime_error("fichier .pt non valide");
         }
 
         path_secondary_model_ = *path_secondary_model;
     }
-
 	path_main_model_pt_   = path_main_model_pt;
 }
 
@@ -75,32 +73,36 @@ void NNPWS::setPT(double p, double T) {
     {
         this->p_ = p;
         this->T_ = T;
-        inputPr_ = PT;
+        //inputPr_ = PT;
         this->calculateG_derivatives();
     }
 }
 
 void NNPWS::setPH(double p, double h)
 {
+    if(this->p_ != p || this->h_ != h || !isValid())
+    {
+        this->p_ = p;
+        this->h_ = h;
+        //inputPr_ = PH;
+        this->calculateT();
+
+        setPT(p, this->T_);
+    }
+}
+
+void NNPWS::calculateT() {
+    valid_ = false;
+
     if (!is_initialized_)
         throw std::runtime_error("model not set call setNeuralNetworks");
 
-    auto module_ph = ModelLoader::instance().get_model(path_secondary_model_);
-    if (!module_ph)
-        throw std::runtime_error("secondary model not available after load: " + path_secondary_model_);
+    if (inputPr_ != PH)
+        throw std::runtime_error("input pair != PH");
 
-    //Region r = Regions_Boundaries::determine_region_PH(p, h);
-    Region r = r2;
-
-    if (r == out_of_regions) {
-        valid_ = false;
-        return;
-    }
-
-    double T = fast_engine_backward_.compute_val(r, p, h);
-
-    setPT(p, T);
+    T_ = fast_engine_backward_.compute_val(p_, h_);
 }
+
 
 
 void NNPWS::calculateG_derivatives() {

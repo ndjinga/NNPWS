@@ -179,7 +179,7 @@ public:
     double getIsothermalCompressibility() const { if (valid_) return -getDensity() * getdV_dP();
         throw std::runtime_error("variable PT not set use setPT() first"); }    // 1/MPa
 
-    double getKappa() const { if (valid_) return -getDensity() * getdV_dP() * 1e-3;
+    double getKappa() const { if (valid_) return -getDensity() * getdV_dP();
         throw std::runtime_error("variable PT not set use setPT() first"); }    // 1/MPa
     
     bool isValid() const { return valid_; }
@@ -211,6 +211,7 @@ private:
     double precision_ = 1e-12;
 
     void calculateG_derivatives();
+    void calculateT();
 };
 
 #endif // NNPWS_NNPWS_HXX
