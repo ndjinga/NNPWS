@@ -41,10 +41,10 @@ public:
     ~FastInference();
 
     void load_from_module(std::shared_ptr<torch::jit::script::Module> module, const std::vector<int>& regions_to_load);
-
+    void load_secondary_from_module(std::shared_ptr<torch::jit::script::Module> module);
 
     FastResult compute(int region_id, double p, double T) const;
-    double compute_val(int region_id, double in1, double in2) const;
+    double compute_val(double in1, double in2) const;
 
 private:
     std::map<int, RegionData> regions_map_;

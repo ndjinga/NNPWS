@@ -108,9 +108,66 @@ void FastInference::load_from_module(std::shared_ptr<torch::jit::script::Module>
     }
 }
 
+void FastInference::load_secondary_from_module(std::shared_ptr<torch::jit::script::Module> module) {
+    std::cout << "[FastInference] Chargement du modele secondaire (PH)..." << std::endl;
+    regions_map_.clear();
+
+    int id = 0;
+    RegionData& data = regions_map_[id];
+    data.is_valid = true;
+
+    auto get_attr = [&](const std::string& name) -> std::vector<double> {
+        if (module->hasattr(name)) {
+            torch::Tensor t = module->attr(name).toTensor().to(torch::kCPU).to(torch::kFloat64);
+            return std::vector<double>(t.data_ptr<double>(), t.data_ptr<double>() + t.numel());
+        }
+        data.is_valid = false;
+        std::cerr << "[WARN] Attribut '" << name << "' manquant dans le modele JIT." << std::endl;
+        return {0.0, 1.0};
+    };
+
+    data.in_mean  = get_attr("in_mean");
+    data.in_std   = get_attr("in_std");
+    data.out_mean = get_attr("out_mean");
+    data.out_std  = get_attr("out_std");
+
+    if (data.is_valid)
+        std::cout << "   > Normalisation chargee. Mean In: [" << data.in_mean[0] << ", " << data.in_mean[1] << "]" << std::endl;
+
+    std::map<int, FastLayer> layers_map;
+
+    auto params = module->named_parameters(true);
+    for (const auto& p : params) {
+        std::string name = p.name;
+
+        std::regex layer_regex(".*\\.(\\d+)\\.(weight|bias)");
+        std::smatch match;
+        if (std::regex_search(name, match, layer_regex)) {
+            int layer_idx = std::stoi(match[1]);
+            int stored_idx = layer_idx / 2;
+
+            torch::Tensor t = p.value.to(torch::kCPU).to(torch::kFloat64);
+            std::vector<double> vals(t.data_ptr<double>(), t.data_ptr<double>() + t.numel());
+
+            if (name.find("weight") != std::string::npos) {
+                layers_map[stored_idx].weights = vals;
+                layers_map[stored_idx].rows = t.size(0);
+                layers_map[stored_idx].cols = t.size(1);
+            } else if (name.find("bias") != std::string::npos) {
+                layers_map[stored_idx].biases = vals;
+            }
+        }
+    }
+
+    for (auto const& [key, layer] : layers_map) {
+        data.layers.push_back(layer);
+    }
+    std::cout << "   > " << data.layers.size() << " couches extraites." << std::endl;
+}
+
 FastResult FastInference::compute(int region_id, double p_real, double T_real) const {
     auto it = regions_map_.find(region_id);
-    if (it == regions_map_.end() || !it->second.is_valid) return {0,0,0,0,0,0};
+    if (it == regions_map_.end() || !it->second.is_valid) throw std::runtime_error("erreur");
     const RegionData& data = it->second;
 
     double x0 = (T_real - data.in_mean[0]) / data.in_std[0];
@@ -201,9 +258,9 @@ FastResult FastInference::compute(int region_id, double p_real, double T_real) c
     return res;
 }
 
-double FastInference::compute_val(int region_id, double val1_real, double val2_real) const {
-    auto it = regions_map_.find(region_id);
-    if (it == regions_map_.end() || !it->second.is_valid) throw std::runtime_error("Region inconnue");
+double FastInference::compute_val(double val1_real, double val2_real) const {
+    auto it = regions_map_.find(0);
+    if (it == regions_map_.end() || !it->second.is_valid) throw std::runtime_error("erreur");
     const RegionData& data = it->second;
 
     size_t max_size = 0;
