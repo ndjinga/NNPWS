@@ -210,3 +210,55 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
         }
     }
 }
+
+void NNPWS::compute_batch_PH(const std::vector<double>& p_list,
+                             const std::vector<double>& h_list,
+                             std::vector<NNPWS>& results,
+                             const std::string& path_main_model_pt,
+                             const std::string& path_secondary_model)
+{
+    if (p_list.size() != h_list.size()) {
+        throw std::runtime_error("Taille des vecteurs P et H differente dans compute_batch_PH");
+    }
+    size_t n = p_list.size();
+
+    if (results.size() != n) {
+        results.resize(n, NNPWS(Undefined));
+    }
+
+    if (!ModelLoader::instance().load(path_secondary_model)) {
+        throw std::runtime_error("Impossible de charger le modele secondaire : " + path_secondary_model);
+    }
+    auto model_ph = ModelLoader::instance().get_model(path_secondary_model);
+
+    auto options = torch::TensorOptions().dtype(torch::kDouble);
+    torch::Tensor input_tensor = torch::empty({(long)n, 2}, options);
+
+    auto input_acc = input_tensor.accessor<double, 2>();
+    for (size_t i = 0; i < n; ++i) {
+        input_acc[i][0] = p_list[i];
+        input_acc[i][1] = h_list[i];
+    }
+
+    torch::NoGradGuard no_grad;
+    std::vector<torch::jit::IValue> inputs;
+    inputs.emplace_back(input_tensor);
+
+    torch::Tensor output_T = model_ph->forward(inputs).toTensor();
+
+    std::vector<double> T_list(n);
+
+    if (output_T.dim() == 2) {
+        auto out_acc = output_T.accessor<double, 2>();
+        for (size_t i = 0; i < n; ++i) {
+            T_list[i] = out_acc[i][0];
+        }
+    } else {
+        auto out_acc = output_T.accessor<double, 1>();
+        for (size_t i = 0; i < n; ++i) {
+            T_list[i] = out_acc[i];
+        }
+    }
+
+    compute_batch_PT(p_list, T_list, results, path_main_model_pt);
+}

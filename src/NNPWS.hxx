@@ -190,6 +190,12 @@ public:
                               std::vector<NNPWS>& results,
                               const std::string& path_main_model_pt);
 
+    static void compute_batch_PH(const std::vector<double>& p_list,
+                                 const std::vector<double>& h_list,
+                                 std::vector<NNPWS>& results,
+                                 const std::string& path_main_model_pt,
+                                 const std::string& path_secondary_model);
+
 private:
     FastInference fast_engine_; //For single calculations
     FastInference fast_engine_backward_;
