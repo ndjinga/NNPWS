@@ -72,13 +72,14 @@ struct IAPWS_Point {
     double kappa; // 1/MPa
 };
 
-NNPWS nnpws(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
+NNPWS nnpwsPT(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
+NNPWS nnpwsPH(PH,"../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
 
 void check_point(const IAPWS_Point& ref, double d1, double d2) {
     //NNPWS w(inputPair::PT, ref.P, ref.T, "../resources/models/DNN_TP_v6.pt", "");
-    nnpws.setPT(ref.P, ref.T);
+    nnpwsPT.setPT(ref.P, ref.T);
 
-    if (!nnpws.isValid()) {
+    if (!nnpwsPT.isValid()) {
         std::cout << COL_RED "[FAIL] Point invalide (Hors region) : P=" << ref.P << " T=" << ref.T << COL_RESET << std::endl;
         g_tests_failed++;
         return;
@@ -86,19 +87,19 @@ void check_point(const IAPWS_Point& ref, double d1, double d2) {
 
     // 1. Densité
     double rho_ref = 1.0 / ref.v;
-    double rho_calc = nnpws.getDensity();
+    double rho_calc = nnpwsPT.getDensity();
     EXPECT_NEAR(rho_calc, rho_ref, d1);
 
     // 2. Entropie
-    double s_calc = nnpws.getEntropy();
+    double s_calc = nnpwsPT.getEntropy();
     EXPECT_NEAR(s_calc, ref.s, d1);
 
     // 3. Cp
-    double cp_calc = nnpws.getCp();
+    double cp_calc = nnpwsPT.getCp();
     EXPECT_NEAR(cp_calc, ref.cp, d2);
 
     // 4. kappa
-    double kappa_calc = nnpws.getKappa();
+    double kappa_calc = nnpwsPT.getKappa();
     //EXPECT_NEAR(kappa_calc, ref.kappa, d2);
 }
 
@@ -131,9 +132,6 @@ TEST(Region1, Point_300K_80MPa) {
 TEST(Region1, Point_500K_3MPa) {
     check_point({3.0, 500.0, 0.001202418003378339, 2.5804191200518094, 4.6558068221112086, 0.0011289218770058733}, 2, 1);
 }
-
-NNPWS nnpwsPT(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
-NNPWS nnpwsPH(PH,"../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
 
 double acc = 1e-3;
 
@@ -203,21 +201,39 @@ TEST(Region2, Point_1070K_15MPa_PH) {
 
 // TESTS BATCH
 
-TEST(Systeme, BatchConsistency) {
-    const std::vector<double> P = {3.0, 80.0, 0.0035, 30.0};
-    const std::vector<double> T = {300.0, 300.0, 300.0, 700.0};
+TEST(Systeme, BatchConsistencyPT) {
+    const std::vector<double> P = {3.0, 8.0, 1.0, 15.0};
+    const std::vector<double> T = {300.0, 600.0, 400.0, 700.0};
     std::vector<NNPWS> res;
 
     NNPWS::compute_batch_PT(P, T, res, "../resources/models/DNN_TP_v8.pt");
 
     for(size_t i=0; i<P.size(); ++i) {
-        nnpws.setPT(P.at(i), T.at(i));
-        if(nnpws.isValid() && res[i].isValid()) {
-            EXPECT_NEAR(nnpws.getDensity(), res[i].getDensity(), 1e-5);
-            EXPECT_NEAR(nnpws.getCp(), res[i].getCp(), 1e-5);
+        nnpwsPT.setPT(P.at(i), T.at(i));
+        if(nnpwsPT.isValid() && res[i].isValid()) {
+            EXPECT_NEAR(nnpwsPT.getDensity(), res[i].getDensity(), 1e-5);
+            EXPECT_NEAR(nnpwsPT.getCp(), res[i].getCp(), 1e-5);
         }
     }
 }
+
+TEST(Systeme, BatchConsistencyPH) {
+    const std::vector<double> P = {3.0, 8.0, 1.0, 15.0};
+    const std::vector<double> H = {115.33127302143888, 2905.5319195853235, 533.4632679456029, 3078.8476570556554};
+
+    std::vector<NNPWS> res;
+
+    NNPWS::compute_batch_PH(P, H, res, "../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
+
+    for(size_t i=0; i<P.size(); ++i) {
+        nnpwsPH.setPH(P.at(i), H.at(i));
+        if(nnpwsPH.isValid() && res[i].isValid()) {
+            EXPECT_NEAR(nnpwsPH.getDensity(), res[i].getDensity(), 1e-5);
+            EXPECT_NEAR(nnpwsPH.getCp(), res[i].getCp(), 1e-5);
+        }
+    }
+}
+
 
 int main(int argc, char** argv) {
     //if (!global_setup("../models/DNN_TP_v6.pt")) return -1;

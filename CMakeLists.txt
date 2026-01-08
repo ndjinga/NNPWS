@@ -33,9 +33,6 @@ target_include_directories(NNPWSLib PUBLIC ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
 install(TARGETS NNPWSLib DESTINATION lib)
 install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include) #
 
-#add_executable(MainTest src/main.cxx)
-#target_link_libraries(MainTest NNPWSLib)
-
 if( NNPWS_WITH_PYTHON )
   message(STATUS "NNPWS requested with PYTHON library. Searching PYTHON library.")
   find_package(Python REQUIRED COMPONENTS Interpreter Development )

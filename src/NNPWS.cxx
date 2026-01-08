@@ -236,27 +236,29 @@ void NNPWS::compute_batch_PH(const std::vector<double>& p_list,
 
     auto input_acc = input_tensor.accessor<double, 2>();
     for (size_t i = 0; i < n; ++i) {
-        input_acc[i][0] = p_list[i];
-        input_acc[i][1] = h_list[i];
+        input_acc[i][0] = h_list[i];
+        input_acc[i][1] = p_list[i];
     }
-
-    torch::NoGradGuard no_grad;
-    std::vector<torch::jit::IValue> inputs;
-    inputs.emplace_back(input_tensor);
-
-    torch::Tensor output_T = model_ph->forward(inputs).toTensor();
 
     std::vector<double> T_list(n);
 
-    if (output_T.dim() == 2) {
-        auto out_acc = output_T.accessor<double, 2>();
-        for (size_t i = 0; i < n; ++i) {
-            T_list[i] = out_acc[i][0];
-        }
-    } else {
-        auto out_acc = output_T.accessor<double, 1>();
-        for (size_t i = 0; i < n; ++i) {
-            T_list[i] = out_acc[i];
+    {
+        torch::NoGradGuard no_grad;
+        std::vector<torch::jit::IValue> inputs;
+        inputs.emplace_back(input_tensor);
+
+        torch::Tensor output_T = model_ph->forward(inputs).toTensor();
+
+        if (output_T.dim() == 2) {
+            auto out_acc = output_T.accessor<double, 2>();
+            for (size_t i = 0; i < n; ++i) {
+                T_list[i] = out_acc[i][0];
+            }
+        } else {
+            auto out_acc = output_T.accessor<double, 1>();
+            for (size_t i = 0; i < n; ++i) {
+                T_list[i] = out_acc[i];
+            }
         }
     }
 
