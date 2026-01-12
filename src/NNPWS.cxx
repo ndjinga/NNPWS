@@ -32,7 +32,7 @@ void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
         throw std::runtime_error("impossible de charger le modele pt");
     }
-    module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
+    std::shared_ptr<torch::jit::script::Module> module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
 
     try {
         std::vector<int> regions = {1, 2, 3, 4, 5};
@@ -128,12 +128,10 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
                           const std::string& path_main_model_pt) {
 
     if (!ModelLoader::instance().load(path_main_model_pt)) {
-
         std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
         throw std::runtime_error("impossible de charger le modele pt");
     }
     std::shared_ptr<torch::jit::script::Module> module_pt = ModelLoader::instance().get_model(path_main_model_pt);
-
 
     if (p_list.size() != T_list.size()) {
         std::string err_msg = "[NNPWS] Erreur de dimension : p_list (" + std::to_string(p_list.size()) +
@@ -142,14 +140,16 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
         throw std::invalid_argument(err_msg);
     }
 
+    torch::Device device = getDevice();
+    module_pt->to(device);
+
     size_t n = p_list.size();
     results.clear();
     results.resize(n, NNPWS(Undefined));
 
     std::map<int, std::vector<size_t>> region_indices;
     Region r;
-    double vol;
-    
+
     for (size_t i = 0; i < n; ++i) {
         r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
         if (r == out_of_regions) {
@@ -167,46 +167,50 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
         flat_input.reserve(n_reg * 2);
 
         for (size_t idx : indices) {
-            flat_input.push_back(T_list[idx]); // T en colonne 0
-            flat_input.push_back(p_list[idx]); // P en colonne 1
+            flat_input.push_back(T_list[idx]); // T
+            flat_input.push_back(p_list[idx]); // P
         }
 
-        torch::Tensor input_tensor = torch::from_blob(flat_input.data(), {(long)n_reg, 2}, torch::kDouble).clone();
+
+        torch::Tensor input_cpu = torch::tensor(flat_input, torch::dtype(torch::kDouble)).reshape({(long)n_reg, 2});
+        torch::Tensor input_device = input_cpu.to(device).detach();
+
+        input_device.set_requires_grad(true);
 
         try {
             std::vector<torch::jit::IValue> inputs;
-            inputs.emplace_back(input_tensor);
+            inputs.emplace_back(input_device);
             inputs.emplace_back(reg_id);
 
-            torch::Tensor output = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
-            auto acc = output.accessor<double, 2>();
+            torch::Tensor output_device = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
+            torch::Tensor output_cpu = output_device.to(torch::kCPU);
+
+            auto acc = output_cpu.accessor<double, 2>();
 
             for (size_t k = 0; k < n_reg; ++k) {
                 size_t original_idx = indices[k];
                 NNPWS& obj = results[original_idx];
-                obj.is_initialized_ = false;
-                obj.valid_ = true;
 
+                obj.valid_ = true;
                 obj.p_ = p_list[original_idx];
                 obj.T_ = T_list[original_idx];
-                
-                obj.g_derivatives_ = FastResult{acc[k][0], acc[k][2], acc[k][1], acc[k][5], acc[k][3], acc[k][4]};
 
-                vol = obj.getVolume() * 1e-3;   // now check if non zero
+                obj.g_derivatives_ = FastResult{
+                    acc[k][0], acc[k][2], acc[k][1],
+                    acc[k][5], acc[k][3], acc[k][4]
+                };
 
-                /* check volume is non zero */
-                if (std::abs(vol) < obj.precision_)
-                    throw std::runtime_error("volume close to 0");
+                double vol = obj.getVolume() * 1e-3;
+                if (std::abs(vol) < 1e-9) {
+                     throw std::runtime_error("volume close to 0");
+                }
 
-            	obj.path_main_model_pt_   = path_main_model_pt;
-                // obj.path_secondary_model_ = path_secondary_model;
-                
-
+                obj.path_main_model_pt_ = path_main_model_pt;
             }
 
         } catch (const c10::Error& e) {
-            std::cerr << "[NNPWS] Erreur Batch LibTorch (Region " << reg_id << "): " << e.what() << std::endl;
-            // throw std::runtime_error("Erreur fatale dans le modèle Torch");
+            std::cerr << "[NNPWS] Erreur Torch (Region " << reg_id << "): " << e.what() << std::endl;
+            for(size_t idx : indices) results[idx].valid_ = false;
         }
     }
 }
@@ -231,35 +235,38 @@ void NNPWS::compute_batch_PH(const std::vector<double>& p_list,
     }
     auto model_ph = ModelLoader::instance().get_model(path_secondary_model);
 
-    auto options = torch::TensorOptions().dtype(torch::kDouble);
-    torch::Tensor input_tensor = torch::empty({(long)n, 2}, options);
+    auto options_cpu = torch::TensorOptions().dtype(torch::kDouble).device(torch::kCPU);
+    torch::Tensor input_cpu = torch::empty({(long)n, 2}, options_cpu);
 
-    auto input_acc = input_tensor.accessor<double, 2>();
+    auto input_acc = input_cpu.accessor<double, 2>();
     for (size_t i = 0; i < n; ++i) {
-        input_acc[i][0] = h_list[i];
+        input_acc[i][0] = h_list[i]; // Ordre H, P
         input_acc[i][1] = p_list[i];
     }
 
-    std::vector<double> T_list(n);
+    torch::Device device = getDevice();
+    torch::Tensor input_device = input_cpu.to(device);
+    model_ph->to(device);
 
+    torch::Tensor output_device;
     {
         torch::NoGradGuard no_grad;
         std::vector<torch::jit::IValue> inputs;
-        inputs.emplace_back(input_tensor);
+        inputs.emplace_back(input_device);
+        output_device = model_ph->forward(inputs).toTensor();
+    }
 
-        torch::Tensor output_T = model_ph->forward(inputs).toTensor();
+    torch::Tensor output_cpu = output_device.to(torch::kCPU);
 
-        if (output_T.dim() == 2) {
-            auto out_acc = output_T.accessor<double, 2>();
-            for (size_t i = 0; i < n; ++i) {
-                T_list[i] = out_acc[i][0];
-            }
-        } else {
-            auto out_acc = output_T.accessor<double, 1>();
-            for (size_t i = 0; i < n; ++i) {
-                T_list[i] = out_acc[i];
-            }
-        }
+    std::vector<double> T_list(n);
+    if (output_cpu.dim() == 2) {
+        auto out_acc = output_cpu.accessor<double, 2>();
+        for (size_t i = 0; i < n; ++i)
+            T_list[i] = out_acc[i][0];
+    } else {
+        auto out_acc = output_cpu.accessor<double, 1>();
+        for (size_t i = 0; i < n; ++i)
+            T_list[i] = out_acc[i];
     }
 
     compute_batch_PT(p_list, T_list, results, path_main_model_pt);

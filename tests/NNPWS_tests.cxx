@@ -237,7 +237,7 @@ TEST(Systeme, BatchConsistencyPH) {
 
 int main(int argc, char** argv) {
     //if (!global_setup("../models/DNN_TP_v6.pt")) return -1;
-
+    NNPWS::setUseGPU(true);
     std::string filter = (argc > 1) ? argv[1] : "";
     if (!filter.empty()) std::cout << ">>> FILTRE: " << filter << std::endl;
 

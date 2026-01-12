@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <torch/script.h>
+#include <torch/cuda.h>
 #include <optional>
 #include "FastInference.hxx"
 #include "Regions.hxx"
@@ -181,6 +182,18 @@ public:
 
     double getKappa() const { if (valid_) return -getDensity() * getdV_dP();
         throw std::runtime_error("variable PT not set use setPT() first"); }    // 1/MPa
+
+    static void setUseGPU(bool use_gpu) {
+        if (use_gpu && torch::cuda::is_available()) {
+            target_device_ = torch::kCUDA;
+            std::cout << "[NNPWS] GPU active (CUDA)" << std::endl;
+        } else {
+            target_device_ = torch::kCPU;
+            std::cout << "[NNPWS] CPU active" << std::endl;
+        }
+    }
+
+    static torch::Device getDevice() { return target_device_; }
     
     bool isValid() const { return valid_; }
 
@@ -200,8 +213,9 @@ private:
     FastInference fast_engine_; //For single calculations
     FastInference fast_engine_backward_;
     FastResult g_derivatives_;
-    std::shared_ptr<torch::jit::script::Module> module_pt_; //for batch or gpu calculations
+    //std::shared_ptr<torch::jit::script::Module> module_pt_; //for batch or gpu calculations
     bool is_initialized_ = false;
+    static inline torch::Device target_device_ = torch::kCPU;
 
     double h_ = 0.0;
     double p_ = 0.0;
@@ -209,9 +223,9 @@ private:
     inputPair inputPr_ = Undefined;
 
     //Path to the main neural network, the one that computes g and its derivatives from P and T
-    std::string path_main_model_pt_ = "resources/models/DNN_TP_v6.pt";
+    std::string path_main_model_pt_ = "../resources/models/DNN_TP_v8.pt";
     //Path to the secondary neural network, the one that computes (P,T) from (P,h) or (rho, e) depending on the enum inputPair
-    std::string path_secondary_model_ = "resources/models/DNN_Backward_PH.pt";
+    std::string path_secondary_model_ = "../resources/models/DNN_Backward_PH_noRegion.pt";
 
     bool valid_ = false;
     double precision_ = 1e-12;
