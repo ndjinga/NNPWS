@@ -5,9 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PROJECT_BRIEF "A library providing IAPWS-97 functions based on neural networks")
 
-option (NNPWS_WITH_PYTHON     "Build Python interface of NNPWS" ON)
-option (NNPWS_WITH_TESTS      "Build and run NNPWS example tests" ON)
-option (NNPWS_WITH_DOCUMENTATION "Generate NNPWS documentation" ON)
+option (NNPWS_WITH_PYTHON           "Build Python interface of NNPWS" ON)
+option (NNPWS_WITH_TESTS            "Build and run NNPWS example tests" ON)
+option (NNPWS_WITH_DOCUMENTATION    "Generate NNPWS documentation" ON)
+option (USE_OPENMP                  "Enable CPU acceleration for batch" ON)
 
 #Path to installed libraries
 set (PYTHON_ROOT_DIR        OFF CACHE STRING "Python  library path" )
@@ -28,8 +29,19 @@ find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 add_library(NNPWSLib SHARED ${MY_SOURCES})
-target_link_libraries(NNPWSLib "${TORCH_LIBRARIES}")
+target_link_libraries(NNPWSLib PUBLIC "${TORCH_LIBRARIES}")
 target_include_directories(NNPWSLib PUBLIC ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
+
+if(USE_OPENMP)
+    find_package(OpenMP)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(NNPWSLib PUBLIC OpenMP::OpenMP_CXX)
+        target_compile_definitions(NNPWSLib PUBLIC NNPWS_USE_OPENMP)
+    else()
+        message(WARNING "OpenMP non trouvé malgré l'option ON. Compilation en séquentiel.")
+    endif()
+endif()
+
 install(TARGETS NNPWSLib DESTINATION lib)
 install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include) #
 

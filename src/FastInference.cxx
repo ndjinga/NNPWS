@@ -6,20 +6,19 @@
 #include <cmath>
 #include <regex>
 
+#ifdef NNPWS_USE_OPENMP
+  #include <omp.h>
+#endif
+
 
 FastInference::FastInference() {
-    ensure_buffers_size(256);
 }
 
 FastInference::~FastInference() {}
 
-void FastInference::ensure_buffers_size(size_t size) const {
-    if (buf_val.size() < size) {
-        buf_val.resize(size); buf_dp.resize(size); buf_dt.resize(size);
-        buf_d2p.resize(size); buf_d2t.resize(size); buf_d2pt.resize(size);
-        next_val.resize(size); next_dp.resize(size); next_dt.resize(size);
-        next_d2p.resize(size); next_d2t.resize(size); next_d2pt.resize(size);
-    }
+FastInference::Thread_data& FastInference::tls_workspace() {
+    static thread_local Thread_data ws;
+    return ws;
 }
 
 static bool starts_with(const std::string& str, const std::string& prefix) {
@@ -100,9 +99,17 @@ void FastInference::load_from_module(std::shared_ptr<torch::jit::script::Module>
                 l.biases.resize(l.rows, 0.0);
             }
             r_data.layers.push_back(l);
+
+            r_data.max_width = std::max(r_data.max_width, static_cast<size_t>(l.rows));
+        }
+
+        r_data.max_width = 0;
+        for (const auto& layer : r_data.layers) {
+            r_data.max_width = std::max(r_data.max_width, static_cast<size_t>(layer.rows));
         }
 
         r_data.is_valid = true;
+        r_data.max_width = std::max(r_data.max_width, static_cast<size_t>(2));
         regions_map_[r] = r_data;
         std::cout << "[FastInference] Region " << r << " chargee (" << r_data.layers.size() << " couches)." << std::endl;
     }
@@ -162,6 +169,12 @@ void FastInference::load_secondary_from_module(std::shared_ptr<torch::jit::scrip
     for (auto const& [key, layer] : layers_map) {
         data.layers.push_back(layer);
     }
+
+    data.max_width = 0;
+    for (const auto& layer : data.layers) {
+        data.max_width = std::max(data.max_width, static_cast<size_t>(layer.rows));
+    }
+    data.max_width = std::max(data.max_width, static_cast<size_t>(2));
     std::cout << "   > " << data.layers.size() << " couches extraites." << std::endl;
 }
 
@@ -169,6 +182,23 @@ FastResult FastInference::compute(int region_id, double p_real, double T_real) c
     auto it = regions_map_.find(region_id);
     if (it == regions_map_.end() || !it->second.is_valid) throw std::runtime_error("erreur");
     const RegionData& data = it->second;
+
+    Thread_data& ws = tls_workspace();
+    ws.ensure(std::max<size_t>(2, data.max_width));
+
+    auto& buf_val  = ws.buf_val;
+    auto& buf_dp   = ws.buf_dp;
+    auto& buf_dt   = ws.buf_dt;
+    auto& buf_d2p  = ws.buf_d2p;
+    auto& buf_d2t  = ws.buf_d2t;
+    auto& buf_d2pt = ws.buf_d2pt;
+
+    auto& next_val  = ws.next_val;
+    auto& next_dp   = ws.next_dp;
+    auto& next_dt   = ws.next_dt;
+    auto& next_d2p  = ws.next_d2p;
+    auto& next_d2t  = ws.next_d2t;
+    auto& next_d2pt = ws.next_d2pt;
 
     double x0 = (T_real - data.in_mean[0]) / data.in_std[0];
     double x1 = (p_real - data.in_mean[1]) / data.in_std[1];
@@ -191,9 +221,11 @@ FastResult FastInference::compute(int region_id, double p_real, double T_real) c
         const FastLayer& layer = data.layers[l_idx];
         bool is_last = (l_idx == data.layers.size() - 1);
         int n_next = layer.rows;
+        ws.ensure(std::max<size_t>(static_cast<size_t>(n_next), 2));
 
-        ensure_buffers_size(n_next);
-
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
         for (int r = 0; r < n_next; ++r) {
             double sum_val = layer.biases[r];
             double sum_dp = 0.0; double sum_dt = 0.0;
@@ -235,6 +267,9 @@ FastResult FastInference::compute(int region_id, double p_real, double T_real) c
             }
         }
 
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
         for(int i=0; i<n_next; ++i) {
             buf_val[i] = next_val[i];
             buf_dp[i] = next_dp[i]; buf_dt[i] = next_dt[i];
@@ -284,6 +319,9 @@ double FastInference::compute_val(double val1_real, double val2_real) const {
         int n_next = layer.rows;
         bool is_last = (l_idx == data.layers.size() - 1);
 
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
         for (int r = 0; r < n_next; ++r) {
             double sum = layer.biases[r];
 
@@ -298,6 +336,9 @@ double FastInference::compute_val(double val1_real, double val2_real) const {
             }
         }
 
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
         for(int i=0; i<n_next; ++i) buf[i] = next_buf[i];
         n_curr = n_next;
     }

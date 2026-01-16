@@ -13,8 +13,10 @@ add_test(NAME Test_Region2_Vapeur COMMAND NNPWS_test Region2)
 # Test Batch
 add_test(NAME Test_Systeme_Global COMMAND NNPWS_test Systeme)
 
+add_test(NAME Test_Global_Performance COMMAND NNPWS_test Performance)
+
 # lance tout
-add_test(NAME Test_Complet_All COMMAND NNPWS_test)
+# add_test(NAME Test_Complet_All COMMAND NNPWS_test)
 #install(TARGETS NNPWS_test DESTINATION test)
 
 

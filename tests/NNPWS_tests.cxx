@@ -5,7 +5,14 @@
 #include <functional>
 #include <algorithm>
 #include <iomanip>
+#include <chrono>
+#include <random>
+
 #include "NNPWS.hxx"
+
+#ifdef NNPWS_USE_OPENMP
+#include <omp.h>
+#endif
 
 int g_tests_passed = 0;
 int g_tests_failed = 0;
@@ -13,6 +20,8 @@ double g_abs_tol = 1e-4;
 
 #define COL_RED "\033[1;31m"
 #define COL_GREEN "\033[1;32m"
+#define COL_YELLOW "\033[1;33m"
+#define COL_CYAN "\033[1;36m"
 #define COL_RESET "\033[0m"
 
 #define TEST(Group, Name) \
@@ -51,18 +60,6 @@ void register_test(const std::string& name, const std::function<void()>& func) {
         } \
     } while(0)
 
-#define ASSERT_TRUE(condition) \
-    do { \
-        if (!(condition)) { \
-            std::cerr << COL_RED "[FATAL\t] " << __FILE__ << ":" << __LINE__ \
-                      << " | Assertion failed: " #condition COL_RESET << std::endl; \
-            g_tests_failed++; \
-            return; \
-        } else { \
-            g_tests_passed++; \
-        } \
-    } while(0)
-
 struct IAPWS_Point {
     double P; // MPa
     double T; // K
@@ -76,7 +73,6 @@ NNPWS nnpwsPT(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
 NNPWS nnpwsPH(PH,"../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
 
 void check_point(const IAPWS_Point& ref, double d1, double d2) {
-    //NNPWS w(inputPair::PT, ref.P, ref.T, "../resources/models/DNN_TP_v6.pt", "");
     nnpwsPT.setPT(ref.P, ref.T);
 
     if (!nnpwsPT.isValid()) {
@@ -97,26 +93,6 @@ void check_point(const IAPWS_Point& ref, double d1, double d2) {
     // 3. Cp
     double cp_calc = nnpwsPT.getCp();
     EXPECT_NEAR(cp_calc, ref.cp, d2);
-
-    // 4. kappa
-    double kappa_calc = nnpwsPT.getKappa();
-    //EXPECT_NEAR(kappa_calc, ref.kappa, d2);
-}
-
-
-// SETUP
-bool global_setup(const std::string& model_path) {
-    static bool loaded = false;
-    if (loaded) return true;
-    std::cout << "[SETUP] Chargement du modele : " << model_path << std::endl;
-
-    g_abs_tol = 1e-2;
-    //if (NNPWS::init(model_path) != 0) {
-    //    std::cerr << COL_RED "FATAL: Impossible de charger le fichier .pt" COL_RESET << std::endl;
-    //    return false;
-    //}
-    loaded = true;
-    return true;
 }
 
 // TESTS REGION 1
@@ -141,7 +117,6 @@ TEST(Region1, Point_300K_3MPa_PH) {
 
     EXPECT_NEAR(nnpwsPH.getDensity(), nnpwsPT.getDensity(), acc);
     EXPECT_NEAR(nnpwsPH.getEntropy(), nnpwsPT.getEntropy(), acc);
-    //EXPECT_NEAR(nnpwsPH.getKappa(), nnpwsPT.getKappa(), 1);
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
@@ -151,7 +126,6 @@ TEST(Region1, Point_500K_3MPa_PH) {
 
     EXPECT_NEAR(nnpwsPH.getDensity(), nnpwsPT.getDensity(), acc);
     EXPECT_NEAR(nnpwsPH.getEntropy(), nnpwsPT.getEntropy(), acc);
-    //EXPECT_NEAR(nnpwsPH.getKappa(), nnpwsPT.getKappa(), 1);
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
@@ -175,7 +149,6 @@ TEST(Region2, Point_800K_8MPa_PH) {
 
     EXPECT_NEAR(nnpwsPH.getDensity(), nnpwsPT.getDensity(), acc);
     EXPECT_NEAR(nnpwsPH.getEntropy(), nnpwsPT.getEntropy(), acc);
-    //EXPECT_NEAR(nnpwsPH.getKappa(), nnpwsPT.getKappa(), 1);
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
@@ -185,7 +158,6 @@ TEST(Region2, Point_650K_0_1MPa_PH) {
 
     EXPECT_NEAR(nnpwsPH.getDensity(), nnpwsPT.getDensity(), acc);
     EXPECT_NEAR(nnpwsPH.getEntropy(), nnpwsPT.getEntropy(), acc);
-    //EXPECT_NEAR(nnpwsPH.getKappa(), nnpwsPT.getKappa(), 1);
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
@@ -195,11 +167,11 @@ TEST(Region2, Point_1070K_15MPa_PH) {
 
     EXPECT_NEAR(nnpwsPH.getDensity(), nnpwsPT.getDensity(), acc);
     EXPECT_NEAR(nnpwsPH.getEntropy(), nnpwsPT.getEntropy(), acc);
-    //EXPECT_NEAR(nnpwsPH.getKappa(), nnpwsPT.getKappa(), 1);
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
-// TESTS BATCH
+
+// TESTS BATCH CONSISTENCY
 
 TEST(Systeme, BatchConsistencyPT) {
     const std::vector<double> P = {3.0, 8.0, 1.0, 15.0};
@@ -235,9 +207,135 @@ TEST(Systeme, BatchConsistencyPH) {
 }
 
 
+// PERFORMANCE BENCHMARKS
+
+TEST(Performance, SpeedTest) {
+    const int N_SAMPLES = 1000000;
+    std::cout << "\n\n" << COL_CYAN << "[BENCHMARK] Generating " << N_SAMPLES << " points..." << COL_RESET << std::endl;
+
+    std::vector<double> P_vec(N_SAMPLES);
+    std::vector<double> T_vec(N_SAMPLES);
+
+    std::mt19937 gen(42);
+    std::uniform_real_distribution<> disP(1.0, 20.0);
+    std::uniform_real_distribution<> disT(300.0, 800.0);
+
+    for(int i=0; i<N_SAMPLES; ++i) {
+        P_vec[i] = disP(gen);
+        T_vec[i] = disT(gen);
+    }
+
+    NNPWS perf_ws(PT, "../resources/models/DNN_TP_v8.pt", std::nullopt);
+    std::vector<NNPWS> batch_results;
+
+    typedef std::chrono::high_resolution_clock Clock;
+    auto tic = Clock::now();
+    auto toc = Clock::now();
+    double duration_setPT_noOMP = 0.0;
+    double duration_setPT_OMP = 0.0;
+    double duration_Batch_noOMP = 0.0;
+    double duration_Batch_OMP = 0.0;
+
+    int max_threads = 1;
+#ifdef NNPWS_USE_OPENMP
+    max_threads = omp_get_max_threads();
+    omp_set_num_threads(1);
+#endif
+
+    tic = Clock::now();
+    for(int i=0; i<N_SAMPLES; ++i) {
+        perf_ws.setPT(P_vec[i], T_vec[i]);
+        volatile double d = perf_ws.getDensity();
+    }
+    toc = Clock::now();
+    duration_setPT_noOMP = std::chrono::duration<double>(toc - tic).count();
+
+#ifdef NNPWS_USE_OPENMP
+    omp_set_num_threads(max_threads);
+#endif
+
+    tic = Clock::now();
+    for(int i=0; i<N_SAMPLES; ++i) {
+        perf_ws.setPT(P_vec[i], T_vec[i]);
+        volatile double d = perf_ws.getDensity();
+    }
+    toc = Clock::now();
+    duration_setPT_OMP = std::chrono::duration<double>(toc - tic).count();
+
+#ifdef NNPWS_USE_OPENMP
+    omp_set_num_threads(1);
+#endif
+
+    tic = Clock::now();
+    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, "../resources/models/DNN_TP_v8.pt");
+    toc = Clock::now();
+    duration_Batch_noOMP = std::chrono::duration<double>(toc - tic).count();
+
+#ifdef NNPWS_USE_OPENMP
+    omp_set_num_threads(max_threads);
+#endif
+
+    tic = Clock::now();
+    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, "../resources/models/DNN_TP_v8.pt");
+    toc = Clock::now();
+    duration_Batch_OMP = std::chrono::duration<double>(toc - tic).count();
+
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << COL_YELLOW << "========================================================" << std::endl;
+    std::cout << " RESULTATS PERFORMANCE (" << N_SAMPLES << " echantillons)" << std::endl;
+    std::cout << "========================================================" << COL_RESET << std::endl;
+
+    std::cout << std::left << std::setw(30) << "Methode"
+              << std::setw(15) << "Threads"
+              << std::setw(15) << "Temps (s)"
+              << "Vitesse (pts/s)" << std::endl;
+    std::cout << "--------------------------------------------------------" << std::endl;
+
+    auto print_row = [&](std::string name, std::string threads, double t) {
+        std::cout << std::left << std::setw(30) << name
+                  << std::setw(15) << threads
+                  << std::setw(15) << t
+                  << (int)(N_SAMPLES/t) << std::endl;
+    };
+
+    print_row("setPT (Iteratif C++)", "1", duration_setPT_noOMP);
+#ifdef NNPWS_USE_OPENMP
+    print_row("setPT (Iteratif C++)", std::to_string(max_threads), duration_setPT_OMP);
+#else
+    print_row("setPT (Iteratif C++)", "N/A (No OMP)", duration_setPT_OMP);
+#endif
+
+    std::cout << "--------------------------------------------------------" << std::endl;
+
+    print_row("compute_batch_PT (Torch)", "1", duration_Batch_noOMP);
+#ifdef NNPWS_USE_OPENMP
+    print_row("compute_batch_PT (Torch)", std::to_string(max_threads), duration_Batch_OMP);
+#else
+    print_row("compute_batch_PT (Torch)", "N/A (No OMP)", duration_Batch_OMP);
+#endif
+
+    std::cout << COL_YELLOW << "========================================================" << COL_RESET << std::endl;
+
+    double gain_batch_vs_iter = duration_setPT_noOMP / duration_Batch_noOMP;
+    std::cout << ">>> Gain Batch vs Iteratif: x" << gain_batch_vs_iter << std::endl;
+#ifdef NNPWS_USE_OPENMP
+    double gain_batch_vs_iter_OMP = duration_setPT_noOMP / duration_Batch_OMP;
+    std::cout << ">>> Gain Batch vs Iteratif avec OMP: x" << gain_batch_vs_iter_OMP << std::endl;
+
+    double gain_omp_iter = duration_setPT_noOMP / duration_setPT_OMP;
+    std::cout << ">>> Gain OpenMP sur Iteratif: x" << gain_omp_iter
+              << (gain_omp_iter < 1.0 ? " (Ralentissement du au surcout threads)" : "") << std::endl;
+
+    double gain_omp_batch = duration_Batch_noOMP / duration_Batch_OMP;
+    std::cout << ">>> Gain OpenMP sur Batch: x" << gain_omp_batch
+              << (gain_omp_batch < 1.0 ? " (Ralentissement du au surcout threads)" : "") << std::endl;
+#endif
+
+    g_tests_passed++;
+}
+
 int main(int argc, char** argv) {
-    //if (!global_setup("../models/DNN_TP_v6.pt")) return -1;
-    NNPWS::setUseGPU(true);
+    NNPWS::setUseGPU(false);
     std::string filter = (argc > 1) ? argv[1] : "";
     if (!filter.empty()) std::cout << ">>> FILTRE: " << filter << std::endl;
 

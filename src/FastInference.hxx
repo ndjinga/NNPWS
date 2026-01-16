@@ -19,6 +19,8 @@ struct RegionData {
     bool is_valid = false;
     std::vector<FastLayer> layers;
 
+    size_t max_width = 0;
+
     std::vector<double> in_mean; //[T_mean, P_mean]
     std::vector<double> in_std;
     std::vector<double> out_mean;
@@ -49,14 +51,24 @@ public:
 private:
     std::map<int, RegionData> regions_map_;
 
-    mutable std::vector<double> buf_val, buf_dp, buf_dt;
-    mutable std::vector<double> buf_d2p, buf_d2t, buf_d2pt;
+    struct Thread_data {
+        size_t cap = 0;
+        std::vector<double> buf_val, buf_dp, buf_dt;
+        std::vector<double> buf_d2p, buf_d2t, buf_d2pt;
+        std::vector<double> next_val, next_dp, next_dt;
+        std::vector<double> next_d2p, next_d2t, next_d2pt;
 
+        void ensure(size_t n) {
+            if (cap >= n) return;
+            cap = n;
+            buf_val.resize(n);  buf_dp.resize(n);  buf_dt.resize(n);
+            buf_d2p.resize(n);  buf_d2t.resize(n); buf_d2pt.resize(n);
+            next_val.resize(n); next_dp.resize(n); next_dt.resize(n);
+            next_d2p.resize(n); next_d2t.resize(n); next_d2pt.resize(n);
+        }
+    };
 
-    mutable std::vector<double> next_val, next_dp, next_dt;
-    mutable std::vector<double> next_d2p, next_d2t, next_d2pt;
-
-    void ensure_buffers_size(size_t size) const;
+    static Thread_data& tls_workspace();
 };
 
 #endif // FAST_INFERENCE_HXX
