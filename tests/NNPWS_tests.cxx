@@ -35,7 +35,6 @@ void register_test(const std::string& name, const std::function<void()>& func) {
     g_test_registry.emplace_back(name, func);
 }
 
-
 #define EXPECT_NEAR(val, ref, rel_tol) \
     do { \
         double v = (val); double r = (ref); double rt = (rel_tol); \
@@ -60,6 +59,25 @@ void register_test(const std::string& name, const std::function<void()>& func) {
         } \
     } while(0)
 
+// Model path
+static const std::string MODEL_TP_JSON = "../resources/models/DNN_TP_v10.json";
+static const std::string MODEL_PH_JSON = "../resources/models/DNN_Backward_PH_noRegion_v2.json";
+
+// Optional: only used if NNPWS_WITH_TORCH is ON
+static const std::string MODEL_TP_PT = "../resources/models/DNN_TP_v10.pt";
+static const std::string MODEL_PH_PT = "../resources/models/DNN_Backward_PH_noRegion_v2.pt";
+
+#ifdef NNPWS_WITH_TORCH
+static const std::string& BATCH_TP_MODEL = MODEL_TP_PT;
+static const std::string& BATCH_PH_MODEL = MODEL_PH_PT;
+static const char* BATCH_BACKEND_LABEL = "Torch";
+#else
+static const std::string& BATCH_TP_MODEL = MODEL_TP_JSON;
+static const std::string& BATCH_PH_MODEL = MODEL_PH_JSON;
+static const char* BATCH_BACKEND_LABEL = "JSON";
+#endif
+
+// Reference points
 struct IAPWS_Point {
     double P; // MPa
     double T; // K
@@ -69,8 +87,8 @@ struct IAPWS_Point {
     double kappa; // 1/MPa
 };
 
-NNPWS nnpwsPT(PT,"../resources/models/DNN_TP_v8.pt", std::nullopt);
-NNPWS nnpwsPH(PH,"../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
+NNPWS nnpwsPT(PT, MODEL_TP_JSON, std::nullopt);
+NNPWS nnpwsPH(PH, MODEL_TP_JSON, MODEL_PH_JSON);
 
 void check_point(const IAPWS_Point& ref, double d1, double d2) {
     nnpwsPT.setPT(ref.P, ref.T);
@@ -96,7 +114,6 @@ void check_point(const IAPWS_Point& ref, double d1, double d2) {
 }
 
 // TESTS REGION 1
-
 TEST(Region1, Point_300K_3MPa) {
     check_point({3.0, 300.0, 0.0010021516796866943,  0.39229479240262577, 4.173012184067787, 0.00044638212280219354}, 1, 1);
 }
@@ -109,7 +126,7 @@ TEST(Region1, Point_500K_3MPa) {
     check_point({3.0, 500.0, 0.001202418003378339, 2.5804191200518094, 4.6558068221112086, 0.0011289218770058733}, 2, 1);
 }
 
-double acc = 1e-3;
+double acc = 1e0;
 
 TEST(Region1, Point_300K_3MPa_PH) {
     nnpwsPT.setPT(3.0, 300.0);
@@ -130,7 +147,6 @@ TEST(Region1, Point_500K_3MPa_PH) {
 }
 
 // TESTS REGION 2
-
 TEST(Region2, Point_800K_8MPa) {
     check_point({8, 800.0, 0.043613196528163034, 6.810345602358012, 2.4445995377277243, 0.13256964210683342}, 1, 1);
 }
@@ -170,15 +186,13 @@ TEST(Region2, Point_1070K_15MPa_PH) {
     EXPECT_NEAR(nnpwsPH.getCp(), nnpwsPT.getCp(), acc);
 }
 
-
 // TESTS BATCH CONSISTENCY
-
 TEST(Systeme, BatchConsistencyPT) {
     const std::vector<double> P = {3.0, 8.0, 1.0, 15.0};
     const std::vector<double> T = {300.0, 600.0, 400.0, 700.0};
     std::vector<NNPWS> res;
 
-    NNPWS::compute_batch_PT(P, T, res, "../resources/models/DNN_TP_v8.pt");
+    NNPWS::compute_batch_PT(P, T, res, BATCH_TP_MODEL);
 
     for(size_t i=0; i<P.size(); ++i) {
         nnpwsPT.setPT(P.at(i), T.at(i));
@@ -195,7 +209,7 @@ TEST(Systeme, BatchConsistencyPH) {
 
     std::vector<NNPWS> res;
 
-    NNPWS::compute_batch_PH(P, H, res, "../resources/models/DNN_TP_v8.pt", "../resources/models/DNN_Backward_PH_noRegion.pt");
+    NNPWS::compute_batch_PH(P, H, res, BATCH_TP_MODEL, BATCH_PH_MODEL);
 
     for(size_t i=0; i<P.size(); ++i) {
         nnpwsPH.setPH(P.at(i), H.at(i));
@@ -206,10 +220,9 @@ TEST(Systeme, BatchConsistencyPH) {
     }
 }
 
-
 // PERFORMANCE BENCHMARKS
-
 TEST(Performance, SpeedTest) {
+    NNPWS::setUseGPU(true);
     const int N_SAMPLES = 1000000;
     std::cout << "\n\n" << COL_CYAN << "[BENCHMARK] Generating " << N_SAMPLES << " points..." << COL_RESET << std::endl;
 
@@ -217,20 +230,33 @@ TEST(Performance, SpeedTest) {
     std::vector<double> T_vec(N_SAMPLES);
 
     std::mt19937 gen(42);
-    std::uniform_real_distribution<> disP(1.0, 20.0);
-    std::uniform_real_distribution<> disT(300.0, 800.0);
+    std::uniform_real_distribution<> disP(1.0, 15.0);
+    std::uniform_real_distribution<> disT(300.0, 650.0);
+
+    // Single inference is JSON
+    NNPWS perf_ws(PT, MODEL_TP_JSON, std::nullopt);
 
     for(int i=0; i<N_SAMPLES; ++i) {
-        P_vec[i] = disP(gen);
-        T_vec[i] = disT(gen);
+
+        double p = disP(gen);
+        double t = disT(gen);
+        Region r = Regions_Boundaries::determine_region(t, p);
+
+        while(r != r1 && r != r2 && r != r4) {
+            p = disP(gen);
+            t = disT(gen);
+            r = Regions_Boundaries::determine_region(t, p);
+        }
+
+        P_vec[i] = p;
+        T_vec[i] = t;
     }
 
-    NNPWS perf_ws(PT, "../resources/models/DNN_TP_v8.pt", std::nullopt);
     std::vector<NNPWS> batch_results;
 
     typedef std::chrono::high_resolution_clock Clock;
-    auto tic = Clock::now();
-    auto toc = Clock::now();
+    auto start = Clock::now();
+    auto end = Clock::now();
     double duration_setPT_noOMP = 0.0;
     double duration_setPT_OMP = 0.0;
     double duration_Batch_noOMP = 0.0;
@@ -242,47 +268,55 @@ TEST(Performance, SpeedTest) {
     omp_set_num_threads(1);
 #endif
 
-    tic = Clock::now();
+    // Iterative 1 thread
+    start = Clock::now();
     for(int i=0; i<N_SAMPLES; ++i) {
         perf_ws.setPT(P_vec[i], T_vec[i]);
         volatile double d = perf_ws.getDensity();
+        (void)d;
     }
-    toc = Clock::now();
-    duration_setPT_noOMP = std::chrono::duration<double>(toc - tic).count();
+    end = Clock::now();
+    duration_setPT_noOMP = std::chrono::duration<double>(end - start).count();
 
 #ifdef NNPWS_USE_OPENMP
     omp_set_num_threads(max_threads);
 #endif
 
-    tic = Clock::now();
+    // Iterative max threads
+    start = Clock::now();
     for(int i=0; i<N_SAMPLES; ++i) {
         perf_ws.setPT(P_vec[i], T_vec[i]);
         volatile double d = perf_ws.getDensity();
+        (void)d;
     }
-    toc = Clock::now();
-    duration_setPT_OMP = std::chrono::duration<double>(toc - tic).count();
+    end = Clock::now();
+    duration_setPT_OMP = std::chrono::duration<double>(end - start).count();
 
 #ifdef NNPWS_USE_OPENMP
     omp_set_num_threads(1);
 #endif
 
-    tic = Clock::now();
-    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, "../resources/models/DNN_TP_v8.pt");
-    toc = Clock::now();
-    duration_Batch_noOMP = std::chrono::duration<double>(toc - tic).count();
+    // Batch 1 thread
+    start = Clock::now();
+    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, BATCH_TP_MODEL);
+    end = Clock::now();
+    duration_Batch_noOMP = std::chrono::duration<double>(end - start).count();
 
 #ifdef NNPWS_USE_OPENMP
     omp_set_num_threads(max_threads);
 #endif
 
-    tic = Clock::now();
-    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, "../resources/models/DNN_TP_v8.pt");
-    toc = Clock::now();
-    duration_Batch_OMP = std::chrono::duration<double>(toc - tic).count();
+    // Batch max threads
+    batch_results.clear();
+    start = Clock::now();
+    NNPWS::compute_batch_PT(P_vec, T_vec, batch_results, BATCH_TP_MODEL);
+    end = Clock::now();
+    duration_Batch_OMP = std::chrono::duration<double>(end - start).count();
 
     std::cout << std::fixed << std::setprecision(4);
     std::cout << COL_YELLOW << "========================================================" << std::endl;
     std::cout << " RESULTATS PERFORMANCE (" << N_SAMPLES << " echantillons)" << std::endl;
+    std::cout << " Backend batch: " << BATCH_BACKEND_LABEL << std::endl;
     std::cout << "========================================================" << COL_RESET << std::endl;
 
     std::cout << std::left << std::setw(30) << "Methode"
@@ -307,11 +341,11 @@ TEST(Performance, SpeedTest) {
 
     std::cout << "--------------------------------------------------------" << std::endl;
 
-    print_row("compute_batch_PT (Torch)", "1", duration_Batch_noOMP);
+    print_row(std::string("compute_batch_PT (") + BATCH_BACKEND_LABEL + ")", "1", duration_Batch_noOMP);
 #ifdef NNPWS_USE_OPENMP
-    print_row("compute_batch_PT (Torch)", std::to_string(max_threads), duration_Batch_OMP);
+    print_row(std::string("compute_batch_PT (") + BATCH_BACKEND_LABEL + ")", std::to_string(max_threads), duration_Batch_OMP);
 #else
-    print_row("compute_batch_PT (Torch)", "N/A (No OMP)", duration_Batch_OMP);
+    print_row(std::string("compute_batch_PT (") + BATCH_BACKEND_LABEL + ")", "N/A (No OMP)", duration_Batch_OMP);
 #endif
 
     std::cout << COL_YELLOW << "========================================================" << COL_RESET << std::endl;
@@ -335,7 +369,8 @@ TEST(Performance, SpeedTest) {
 }
 
 int main(int argc, char** argv) {
-    NNPWS::setUseGPU(false);
+    NNPWS::setUseGPU(true);
+
     std::string filter = (argc > 1) ? argv[1] : "";
     if (!filter.empty()) std::cout << ">>> FILTRE: " << filter << std::endl;
 

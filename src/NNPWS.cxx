@@ -1,121 +1,91 @@
 #include "NNPWS.hxx"
-#include <iostream>
-#include <map>
-#include <stdexcept>
 
-//This constructor requires explicit call to setNeuralNetworks by the user, unlike the other constructors. Use only if you want to delay the memory allocation
-NNPWS::NNPWS(inputPair varnames) : valid_(false), is_initialized_(false), inputPr_(varnames){}
+#ifdef NNPWS_USE_OPENMP
+  #include <omp.h>
+#endif
 
-NNPWS::NNPWS(inputPair varnames, double var1, double var2, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model)
-: valid_(false), is_initialized_(false), inputPr_(varnames) {
-    setNeuralNetworks(path_main_model_pt, path_secondary_model);
-        
-    switch(varnames)
-    {
-        case PT : p_ = var1; T_ = var2; setPT(  p_, T_);   break;
-        case PH : setPH(  var1, var2); break;
-        //case RhoE : setRhoE(var1, var2); break;
-        default : throw std::runtime_error("not implemented");
-    }
-}
+NNPWS::NNPWS(inputPair varnames) : inputPr_(varnames) {}
 
-NNPWS::NNPWS(inputPair varnames, const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model) : valid_(false), is_initialized_(false), inputPr_(varnames)
+NNPWS::NNPWS(inputPair varnames, double var1, double var2,
+             const std::string& path_main_model,
+             const std::optional<const std::string>& path_secondary_model)
+: inputPr_(varnames)
 {
-	setNeuralNetworks(path_main_model_pt, path_secondary_model);
+    setNeuralNetworks(path_main_model, path_secondary_model);
+
+    switch(varnames) {
+        case PT: setPT(var1, var2); break;
+        case PH: setPH(var1, var2); break;
+        default: throw std::runtime_error("not implemented");
+    }
 }
 
-NNPWS::~NNPWS() = default;
+NNPWS::NNPWS(inputPair varnames,
+             const std::string& path_main_model,
+             const std::optional<const std::string>& path_secondary_model)
+: inputPr_(varnames)
+{
+    setNeuralNetworks(path_main_model, path_secondary_model);
+}
 
-void NNPWS::setNeuralNetworks(const std::string& path_main_model_pt, const std::optional<const std::string>& path_secondary_model) {
-    if (!ModelLoader::instance().load(path_main_model_pt)) {
-
-        std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        throw std::runtime_error("impossible de charger le modele pt");
-    }
-    std::shared_ptr<torch::jit::script::Module> module_pt_ = ModelLoader::instance().get_model(path_main_model_pt);
-
-    try {
-        std::vector<int> regions = {1, 2, 3, 4, 5};
-        fast_engine_.load_from_module(module_pt_, regions);
+void NNPWS::setNeuralNetworks(const std::string& path_main_model,
+                              const std::optional<const std::string>& path_secondary_model)
+{
+    // JSON is the default for FastInference
+    if (ends_with(path_main_model, ".json")) {
+        fast_engine_.load_from_json_file(path_main_model, {1,2,3,4,5});
         is_initialized_ = true;
+        path_main_model_ = path_main_model;
 
-    } catch (const std::exception& e) {
+        if (inputPr_ == PH) {
+            if (!path_secondary_model.has_value())
+                throw std::runtime_error("PH requires secondary model JSON");
+            if (!ends_with(*path_secondary_model, ".json"))
+                throw std::runtime_error("PH secondary must be .json");
 
-        std::cerr << "[NNPWS] Erreur init FastInference: " << e.what() << std::endl;
-        throw std::runtime_error("fichier .pt non valide");
+            fast_engine_backward_.load_secondary_from_json_file(*path_secondary_model);
+            path_secondary_model_ = *path_secondary_model;
+        }
+        return;
     }
 
-    if (inputPr_ == PH) {
-        if (!path_secondary_model.has_value()) throw std::runtime_error("PH input requires a secondary model");
-
-        if (!ModelLoader::instance().load(*path_secondary_model)) {
-
-            std::cerr << "[NNPWS] Erreur chargement modele PH." << std::endl;
-            throw std::runtime_error("impossible de charger le modele ph");
-        }
-
-        try {
-            fast_engine_backward_.load_secondary_from_module(ModelLoader::instance().get_model(*path_secondary_model));
-        } catch (const std::exception& e) {
-
-            std::cerr << "[NNPWS] Erreur init FastInferenceBackward: " << e.what() << std::endl;
-            throw std::runtime_error("fichier .pt non valide");
-        }
-
-        path_secondary_model_ = *path_secondary_model;
-    }
-	path_main_model_pt_   = path_main_model_pt;
+    throw std::runtime_error("provide .json model paths for single calls");
 }
 
 void NNPWS::setPT(double p, double T) {
-	
-	if(this->p_ != p || this->T_ != T || !isValid())
-    {
-        this->p_ = p;
-        this->T_ = T;
-        //inputPr_ = PT;
-        this->calculateG_derivatives();
+    if (p_ != p || T_ != T || !valid_) {
+        p_ = p;
+        T_ = T;
+        calculateG_derivatives();
     }
 }
 
-void NNPWS::setPH(double p, double h)
-{
-    if(this->p_ != p || this->h_ != h || !isValid())
-    {
-        this->p_ = p;
-        this->h_ = h;
-        //inputPr_ = PH;
-        this->calculateT();
-
-        setPT(p, this->T_);
+void NNPWS::setPH(double p, double h) {
+    if (p_ != p || h_ != h || !valid_) {
+        p_ = p;
+        h_ = h;
+        calculateT();
+        setPT(p_, T_);
     }
 }
 
 void NNPWS::calculateT() {
     valid_ = false;
-
-    if (!is_initialized_)
-        throw std::runtime_error("model not set call setNeuralNetworks");
-
-    if (inputPr_ != PH)
-        throw std::runtime_error("input pair != PH");
+    if (!is_initialized_) throw std::runtime_error("Models not set: call setNeuralNetworks()");
+    if (inputPr_ != PH) throw std::runtime_error("input pair != PH");
 
     T_ = fast_engine_backward_.compute_val(p_, h_);
 }
 
-
-
 void NNPWS::calculateG_derivatives() {
     valid_ = false;
-
-    if (!is_initialized_) throw std::runtime_error("model not set call setNeuralNetworks(path_main_model_pt, path_secondary_model)");//throw exception or call setNeuralNetworks( path_main_model_pt, path_secondary_model)
+    if (!is_initialized_) throw std::runtime_error("Models not set: call setNeuralNetworks()");
 
     const Region r = Regions_Boundaries::determine_region(T_, p_);
-    if (r == out_of_regions) throw std::runtime_error("TP out of region"); 
+    if (r == out_of_regions) throw std::runtime_error("TP out of region");
 
-    g_derivatives_ = fast_engine_.compute(r, p_, T_);
- 
-    /* Check volume is non zero */
+    g_derivatives_ = fast_engine_.compute((int)r, p_, T_);
+
     if (std::abs(g_derivatives_.dG_dP) < precision_)
         throw std::runtime_error("volume close to 0");
 
@@ -123,44 +93,65 @@ void NNPWS::calculateG_derivatives() {
 }
 
 void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
-                          const std::vector<double>& T_list,
-                          std::vector<NNPWS>& results,
-                          const std::string& path_main_model_pt) {
+                             const std::vector<double>& T_list,
+                             std::vector<NNPWS>& results,
+                             const std::string& path_main_model)
+{
+    if (p_list.size() != T_list.size())
+        throw std::invalid_argument("compute_batch_PT: P and T size mismatch");
 
-    if (!ModelLoader::instance().load(path_main_model_pt)) {
-        std::cerr << "[NNPWS] Erreur chargement modele PT." << std::endl;
-        throw std::runtime_error("impossible de charger le modele pt");
-    }
-    std::shared_ptr<torch::jit::script::Module> module_pt = ModelLoader::instance().get_model(path_main_model_pt);
+    const size_t n = p_list.size();
+    results.clear();
+    results.resize(n, NNPWS(Undefined));
 
-    if (p_list.size() != T_list.size()) {
-        std::string err_msg = "[NNPWS] Erreur de dimension : p_list (" + std::to_string(p_list.size()) +
-                              ") et T_list (" + std::to_string(T_list.size()) + ") doivent avoir la même taille.";
-        std::cerr << err_msg << std::endl;
-        throw std::invalid_argument(err_msg);
+    // JSON batch (CPU)
+    if (ends_with(path_main_model, ".json")) {
+        FastInference eng;
+        eng.load_from_json_file(path_main_model, {1,2,3,4,5});
+
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
+        for (size_t i = 0; i < n; ++i) {
+            const Region r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
+            if (r == out_of_regions) { results[i].valid_ = false; continue; }
+
+            try {
+                results[i].p_ = p_list[i];
+                results[i].T_ = T_list[i];
+                results[i].g_derivatives_ = eng.compute(r, p_list[i], T_list[i]);
+                results[i].valid_ = true;
+            } catch (...) {
+                results[i].valid_ = false;
+            }
+        }
+        return;
     }
+
+#ifdef NNPWS_WITH_TORCH
+    // Torch batch if .pt is provided
+    if (!ends_with(path_main_model, ".pt"))
+        throw std::runtime_error("compute_batch_PT: expected .json or .pt path");
+
+    if (!ModelLoader::instance().load(path_main_model))
+        throw std::runtime_error("Torch model load failed: " + path_main_model);
+
+    auto module_pt = ModelLoader::instance().get_model(path_main_model);
+    if (!module_pt) throw std::runtime_error("Torch model null: " + path_main_model);
 
     torch::Device device = getDevice();
     module_pt->to(device);
 
-    size_t n = p_list.size();
-    results.clear();
-    results.resize(n, NNPWS(Undefined));
-
+    // Group indices by IAPWS region
     std::map<int, std::vector<size_t>> region_indices;
-    Region r;
-
     for (size_t i = 0; i < n; ++i) {
-        r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
-        if (r == out_of_regions) {
-            results[i].valid_ = false;
-            continue;
-        }
-        region_indices[(int)r].push_back(i);
+        Region r = Regions_Boundaries::determine_region(T_list[i], p_list[i]);
+        if (r == out_of_regions) { results[i].valid_ = false; continue; }
+        region_indices[static_cast<int>(r)].push_back(i);
     }
 
     for (auto const& [reg_id, indices] : region_indices) {
-        size_t n_reg = indices.size();
+        const size_t n_reg = indices.size();
         if (n_reg == 0) continue;
 
         std::vector<double> flat_input;
@@ -171,103 +162,117 @@ void NNPWS::compute_batch_PT(const std::vector<double>& p_list,
             flat_input.push_back(p_list[idx]); // P
         }
 
-
-        torch::Tensor input_cpu = torch::tensor(flat_input, torch::dtype(torch::kDouble)).reshape({(long)n_reg, 2});
-        torch::Tensor input_device = input_cpu.to(device).detach();
-
-        input_device.set_requires_grad(true);
+        torch::Tensor input_cpu = torch::tensor(flat_input, torch::dtype(torch::kDouble)).reshape({static_cast<long>(n_reg), 2});
+        torch::Tensor input_dev = input_cpu.to(device).detach();
+        input_dev.set_requires_grad(true);
 
         try {
             std::vector<torch::jit::IValue> inputs;
-            inputs.emplace_back(input_device);
+            inputs.emplace_back(input_dev);
             inputs.emplace_back(reg_id);
 
-            torch::Tensor output_device = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
-            torch::Tensor output_cpu = output_device.to(torch::kCPU);
+            torch::Tensor out_dev = module_pt->get_method("compute_derivatives_batch")(inputs).toTensor();
+            torch::Tensor out_cpu = out_dev.to(torch::kCPU);
 
-            auto acc = output_cpu.accessor<double, 2>();
-
+            auto acc = out_cpu.accessor<double, 2>();
             for (size_t k = 0; k < n_reg; ++k) {
-                size_t original_idx = indices[k];
-                NNPWS& obj = results[original_idx];
+                const size_t i0 = indices[k];
+                NNPWS& obj = results[i0];
 
                 obj.valid_ = true;
-                obj.p_ = p_list[original_idx];
-                obj.T_ = T_list[original_idx];
+                obj.p_ = p_list[i0];
+                obj.T_ = T_list[i0];
 
                 obj.g_derivatives_ = FastResult{
                     acc[k][0], acc[k][2], acc[k][1],
                     acc[k][5], acc[k][3], acc[k][4]
                 };
-
-                double vol = obj.getVolume() * 1e-3;
-                if (std::abs(vol) < 1e-9) {
-                     throw std::runtime_error("volume close to 0");
-                }
-
-                obj.path_main_model_pt_ = path_main_model_pt;
             }
-
         } catch (const c10::Error& e) {
-            std::cerr << "[NNPWS] Erreur Torch (Region " << reg_id << "): " << e.what() << std::endl;
-            for(size_t idx : indices) results[idx].valid_ = false;
+            std::cerr << "[NNPWS/Torch] batch failed for region " << reg_id << ": " << e.what() << "\n";
+            for (size_t idx : indices) results[idx].valid_ = false;
         }
     }
+    return;
+#else
+    throw std::runtime_error("Built without Torch: compute_batch_PT requires JSON path.");
+#endif
 }
 
 void NNPWS::compute_batch_PH(const std::vector<double>& p_list,
                              const std::vector<double>& h_list,
                              std::vector<NNPWS>& results,
-                             const std::string& path_main_model_pt,
+                             const std::string& path_main_model,
                              const std::string& path_secondary_model)
 {
-    if (p_list.size() != h_list.size()) {
-        throw std::runtime_error("Taille des vecteurs P et H differente dans compute_batch_PH");
-    }
-    size_t n = p_list.size();
+    if (p_list.size() != h_list.size())
+        throw std::invalid_argument("compute_batch_PH: P and H size mismatch");
 
-    if (results.size() != n) {
-        results.resize(n, NNPWS(Undefined));
+    const size_t n = p_list.size();
+    results.clear();
+    results.resize(n, NNPWS(Undefined));
+
+    // JSON batch: PH -> compute T list then call batch_PT JSON
+    if (ends_with(path_main_model, ".json") && ends_with(path_secondary_model, ".json")) {
+        FastInference ph;
+        ph.load_secondary_from_json_file(path_secondary_model);
+
+        std::vector<double> T_list(n);
+
+#ifdef NNPWS_USE_OPENMP
+        #pragma omp parallel for schedule(static)
+#endif
+        for (size_t i = 0; i < n; ++i) {
+            T_list[i] = ph.compute_val(p_list[i], h_list[i]);
+        }
+
+        compute_batch_PT(p_list, T_list, results, path_main_model);
+        return;
     }
 
-    if (!ModelLoader::instance().load(path_secondary_model)) {
-        throw std::runtime_error("Impossible de charger le modele secondaire : " + path_secondary_model);
-    }
+#ifdef NNPWS_WITH_TORCH
+
+    if (!ends_with(path_main_model, ".pt") || !ends_with(path_secondary_model, ".pt"))
+        throw std::runtime_error("compute_batch_PH: expected (.json,.json) or (.pt,.pt)");
+
+    if (!ModelLoader::instance().load(path_secondary_model))
+        throw std::runtime_error("Torch PH load failed: " + path_secondary_model);
+
     auto model_ph = ModelLoader::instance().get_model(path_secondary_model);
-
-    auto options_cpu = torch::TensorOptions().dtype(torch::kDouble).device(torch::kCPU);
-    torch::Tensor input_cpu = torch::empty({(long)n, 2}, options_cpu);
-
-    auto input_acc = input_cpu.accessor<double, 2>();
-    for (size_t i = 0; i < n; ++i) {
-        input_acc[i][0] = h_list[i]; // Ordre H, P
-        input_acc[i][1] = p_list[i];
-    }
+    if (!model_ph) throw std::runtime_error("Torch PH model null");
 
     torch::Device device = getDevice();
-    torch::Tensor input_device = input_cpu.to(device);
     model_ph->to(device);
 
-    torch::Tensor output_device;
+    torch::Tensor input_cpu = torch::empty({(long)n, 2}, torch::TensorOptions().dtype(torch::kDouble).device(torch::kCPU));
+    auto input_acc = input_cpu.accessor<double, 2>();
+    for (size_t i = 0; i < n; ++i) {
+        input_acc[i][0] = h_list[i]; // H
+        input_acc[i][1] = p_list[i]; // P
+    }
+
+    torch::Tensor input_dev = input_cpu.to(device);
+    torch::Tensor out_dev;
     {
-        torch::NoGradGuard no_grad;
-        std::vector<torch::jit::IValue> inputs;
-        inputs.emplace_back(input_device);
-        output_device = model_ph->forward(inputs).toTensor();
+        torch::NoGradGuard ng;
+        std::vector<torch::jit::IValue> in;
+        in.emplace_back(input_dev);
+        out_dev = model_ph->forward(in).toTensor();
     }
 
-    torch::Tensor output_cpu = output_device.to(torch::kCPU);
-
+    torch::Tensor out_cpu = out_dev.to(torch::kCPU);
     std::vector<double> T_list(n);
-    if (output_cpu.dim() == 2) {
-        auto out_acc = output_cpu.accessor<double, 2>();
-        for (size_t i = 0; i < n; ++i)
-            T_list[i] = out_acc[i][0];
+    if (out_cpu.dim() == 2) {
+        auto out_acc = out_cpu.accessor<double, 2>();
+        for (size_t i = 0; i < n; ++i) T_list[i] = out_acc[i][0];
     } else {
-        auto out_acc = output_cpu.accessor<double, 1>();
-        for (size_t i = 0; i < n; ++i)
-            T_list[i] = out_acc[i];
+        auto out_acc = out_cpu.accessor<double, 1>();
+        for (size_t i = 0; i < n; ++i) T_list[i] = out_acc[i];
     }
 
-    compute_batch_PT(p_list, T_list, results, path_main_model_pt);
+    compute_batch_PT(p_list, T_list, results, path_main_model);
+    return;
+#else
+    throw std::runtime_error("Built without Torch: compute_batch_PH requires (.json,.json).");
+#endif
 }

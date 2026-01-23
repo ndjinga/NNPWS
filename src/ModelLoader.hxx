@@ -1,7 +1,7 @@
 #ifndef NNPWS_MODELLOADER_HXX
 #define NNPWS_MODELLOADER_HXX
 
-#pragma once
+#ifdef NNPWS_WITH_TORCH
 
 #include <torch/script.h>
 #include <string>
@@ -10,9 +10,7 @@
 
 class ModelLoader {
 private:
-    // Stockage des modèles : Clé = Chemin du fichier, Valeur = Pointeur vers le modèle
     std::map<std::string, std::shared_ptr<torch::jit::script::Module>> models_map;
-
     ModelLoader() = default;
 
 public:
@@ -22,10 +20,10 @@ public:
     void operator=(const ModelLoader&) = delete;
 
     bool load(const std::string& path);
-
     std::shared_ptr<torch::jit::script::Module> get_model(const std::string& path) const;
-
     bool is_loaded(const std::string& path) const;
 };
 
-#endif //NNPWS_MODELLOADER_HXX
+#endif // NNPWS_WITH_TORCH
+
+#endif // NNPWS_MODELLOADER_HXX

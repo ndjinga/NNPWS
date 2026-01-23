@@ -8,29 +8,43 @@ set(PROJECT_BRIEF "A library providing IAPWS-97 functions based on neural networ
 option (NNPWS_WITH_PYTHON           "Build Python interface of NNPWS" ON)
 option (NNPWS_WITH_TESTS            "Build and run NNPWS example tests" ON)
 option (NNPWS_WITH_DOCUMENTATION    "Generate NNPWS documentation" ON)
-option (USE_OPENMP                  "Enable CPU acceleration for batch" ON)
+option (USE_OPENMP                  "Activate CPU acceleration" ON)
 
-#Path to installed libraries
-set (PYTHON_ROOT_DIR        OFF CACHE STRING "Python  library path" )
-set (TORCH_INSTALL_PREFIX      OFF CACHE STRING "Libtorch library path" )
+# NEW: Torch optional (only for batch .pt)
+option (NNPWS_WITH_TORCH            "Enable libtorch backend (TorchScript + batch)" ON)
+
+set (PYTHON_ROOT_DIR          OFF CACHE STRING "Python library path" )
+set (TORCH_INSTALL_PREFIX     OFF CACHE STRING "Libtorch library path" )
 
 list (APPEND CMAKE_MODULE_PATH "${NNPWS_SOURCE_DIR}/cmake" "${TORCH_INSTALL_PREFIX}/share/cmake")
 
 set(MY_SOURCES
-src/NNPWS.cxx
-src/ModelLoader.cxx
-src/FastInference.cxx
-)
-set(MY_HEADERS
-src
+        src/NNPWS.cxx
+        src/FastInference.cxx
 )
 
-find_package(Torch REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+# Torch-only loader
+if(NNPWS_WITH_TORCH)
+    list(APPEND MY_SOURCES src/ModelLoader.cxx)
+endif()
+
+set(MY_HEADERS
+        src
+)
+
+if(NNPWS_WITH_TORCH)
+    find_package(Torch REQUIRED)
+    add_compile_definitions(NNPWS_WITH_TORCH)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+endif()
 
 add_library(NNPWSLib SHARED ${MY_SOURCES})
-target_link_libraries(NNPWSLib PUBLIC "${TORCH_LIBRARIES}")
-target_include_directories(NNPWSLib PUBLIC ${MY_HEADERS} ${TORCH_INCLUDE_DIRS})
+target_include_directories(NNPWSLib PUBLIC ${MY_HEADERS})
+
+if(NNPWS_WITH_TORCH)
+    target_link_libraries(NNPWSLib PUBLIC "${TORCH_LIBRARIES}")
+    target_include_directories(NNPWSLib PUBLIC ${TORCH_INCLUDE_DIRS})
+endif()
 
 if(USE_OPENMP)
     find_package(OpenMP)
@@ -43,43 +57,40 @@ if(USE_OPENMP)
 endif()
 
 install(TARGETS NNPWSLib DESTINATION lib)
-install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include) #
+install(FILES ${PROJECT_SOURCE_DIR}/src/NNPWS.hxx DESTINATION include)
 
 if( NNPWS_WITH_PYTHON )
-  message(STATUS "NNPWS requested with PYTHON library. Searching PYTHON library.")
-  find_package(Python REQUIRED COMPONENTS Interpreter Development )
-  find_package (SWIG 3.0 REQUIRED)
-  add_subdirectory(swig)
- set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, python3, swig, python3-matplotlib")
- set (CPACK_RPM_PACKAGE_REQUIRES   "${CPACK_RPM_PACKAGE_REQUIRES},   python3, swig, python3-matplotlib")
-endif( NNPWS_WITH_PYTHON )
+    message(STATUS "NNPWS requested with PYTHON library. Searching PYTHON library.")
+    find_package(Python REQUIRED COMPONENTS Interpreter Development )
+    find_package (SWIG 3.0 REQUIRED)
+    add_subdirectory(swig)
+    set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, python3, swig, python3-matplotlib")
+    set (CPACK_RPM_PACKAGE_REQUIRES   "${CPACK_RPM_PACKAGE_REQUIRES},   python3, swig, python3-matplotlib")
+endif()
 
 if( NNPWS_WITH_TESTS )
- enable_testing()
- add_subdirectory(tests)
- file(COPY resources DESTINATION ${CMAKE_BINARY_DIR})
-endif( NNPWS_WITH_TESTS )
+    enable_testing()
+    add_subdirectory(tests)
+    file(COPY resources DESTINATION ${CMAKE_BINARY_DIR})
+endif()
 
-# Find and use Doxygen for documentation
-if (NNPWS_WITH_DOCUMENTATION)                                                                           #
- IF   ( DEFINED DOXYGEN_ROOT_DIR OR DEFINED ENV{DOXYGEN_ROOT_DIR})
-   IF   ( DEFINED DOXYGEN_ROOT_DIR )
-     set(DOXYGEN_EXECUTABLE    ${DOXYGEN_ROOT_DIR}/bin/doxygen )
-   ELSE ( DEFINED DOXYGEN_ROOT_DIR )
-     set(DOXYGEN_EXECUTABLE $ENV{DOXYGEN_ROOT_DIR}/bin/doxygen )
-   ENDIF( DEFINED DOXYGEN_ROOT_DIR)
- ENDIF( DEFINED DOXYGEN_ROOT_DIR OR DEFINED ENV{DOXYGEN_ROOT_DIR})
-  find_package (Doxygen)                                                                                    #
-  if   (NOT DOXYGEN_FOUND)
-    message (FATAL_ERROR "Doxygen is needed to build the documentation. Please install it correctly.")
-  endif(NOT DOXYGEN_FOUND)
+if (NNPWS_WITH_DOCUMENTATION)
+    IF ( DEFINED DOXYGEN_ROOT_DIR OR DEFINED ENV{DOXYGEN_ROOT_DIR})
+        IF ( DEFINED DOXYGEN_ROOT_DIR )
+            set(DOXYGEN_EXECUTABLE    ${DOXYGEN_ROOT_DIR}/bin/doxygen )
+        ELSE()
+            set(DOXYGEN_EXECUTABLE $ENV{DOXYGEN_ROOT_DIR}/bin/doxygen )
+        ENDIF()
+    ENDIF()
+    find_package (Doxygen)
+    if (NOT DOXYGEN_FOUND)
+        message (FATAL_ERROR "Doxygen is needed to build the documentation. Please install it correctly.")
+    endif()
 
-  set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, doxygen, graphviz, mscgen")
-  set (CPACK_RPM_PACKAGE_REQUIRES   "${CPACK_RPM_PACKAGE_REQUIRES},   doxygen, graphviz, mscgen")
+    set (CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, doxygen, graphviz, mscgen")
+    set (CPACK_RPM_PACKAGE_REQUIRES   "${CPACK_RPM_PACKAGE_REQUIRES},   doxygen, graphviz, mscgen")
 
-  configure_file (doc/Doxyfile-NNPWS.in ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  @ONLY IMMEDIATE)
-  add_custom_target (doc COMMAND ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  SOURCES ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc)			                                            #
-  install (DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/dev-doc/html DESTINATION share/doc/NNPWS-dev-doc OPTIONAL)                  #
-
-endif(NNPWS_WITH_DOCUMENTATION)
-
+    configure_file (doc/Doxyfile-NNPWS.in ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  @ONLY IMMEDIATE)
+    add_custom_target (doc COMMAND ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc  SOURCES ${PROJECT_BINARY_DIR}/Doxyfile-dev-doc)
+    install (DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/dev-doc/html DESTINATION share/doc/NNPWS-dev-doc OPTIONAL)
+endif()
