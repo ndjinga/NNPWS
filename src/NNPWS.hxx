@@ -3,7 +3,9 @@
 
 #include <vector>
 #include <string>
+#if __cplusplus >= 201703L
 #include <optional>
+#endif
 #include <stdexcept>
 #include <iostream>
 
@@ -36,20 +38,30 @@ public:
      * \param [in] string, path to the main neural network file
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      *  */
+    #if __cplusplus >= 201703L
     NNPWS(inputPair varnames, double first, double second,
           const std::string& path_main_model,
           const std::optional<const std::string>& path_secondary_model = std::nullopt);
-
+    #else
+    NNPWS(inputPair varnames, double first, double second,
+          const std::string& path_main_model,
+          const std::string& path_secondary_model = "");
+    #endif
     /** \fn NNPWS
      * \brief Half-way data constructor
      * \details Loads the NN model in memory and wait for values of p and T to compute g derivatives
      * \param [in] string, path to the main neural network file
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      *  */
+    #if __cplusplus >= 201703L
     NNPWS(inputPair varnames,
           const std::string& path_main_model,
           const std::optional<const std::string>& path_secondary_model = std::nullopt);
-
+    #else
+    NNPWS(inputPair varnames,
+          const std::string& path_main_model,
+          const std::string& path_secondary_model = "");
+    #endif
     ~NNPWS() = default;
 
     /** \fn setNeuralNetworks
@@ -59,9 +71,13 @@ public:
      * \param [in] string, (optional) path to the auxilliary neural network file used to convert P-H or RhoE to P-T
      * \param [out] void
      *  */
+    #if __cplusplus >= 201703L
     void setNeuralNetworks(const std::string& path_main_model,
                            const std::optional<const std::string>& path_secondary_model = std::nullopt);
-
+    #else
+    void setNeuralNetworks(const std::string& path_main_model,
+                           const std::string& path_secondary_model = "");
+    #endif
     /** \fn setPT
      * \brief  Set Pressure and Temperature and calculate g derivatives
      * \details Path to the neural network file should be set before, otherwise exception raised

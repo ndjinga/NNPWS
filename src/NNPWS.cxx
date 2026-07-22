@@ -6,6 +6,7 @@
 
 NNPWS::NNPWS(inputPair varnames) : inputPr_(varnames) {}
 
+#if __cplusplus >= 201703L
 NNPWS::NNPWS(inputPair varnames, double var1, double var2,
              const std::string& path_main_model,
              const std::optional<const std::string>& path_secondary_model)
@@ -19,7 +20,23 @@ NNPWS::NNPWS(inputPair varnames, double var1, double var2,
         default: throw std::runtime_error("not implemented");
     }
 }
+#else
+NNPWS::NNPWS(inputPair varnames, double var1, double var2,
+             const std::string& path_main_model,
+             const std::string& path_secondary_model)
+: inputPr_(varnames)
+{
+    setNeuralNetworks(path_main_model, path_secondary_model);
 
+    switch(varnames) {
+        case PT: setPT(var1, var2); break;
+        case PH: setPH(var1, var2); break;
+        default: throw std::runtime_error("not implemented");
+    }
+}
+#endif
+
+#if __cplusplus >= 201703L
 NNPWS::NNPWS(inputPair varnames,
              const std::string& path_main_model,
              const std::optional<const std::string>& path_secondary_model)
@@ -27,7 +44,17 @@ NNPWS::NNPWS(inputPair varnames,
 {
     setNeuralNetworks(path_main_model, path_secondary_model);
 }
+#else
+NNPWS::NNPWS(inputPair varnames,
+             const std::string& path_main_model,
+             const std::string& path_secondary_model)
+: inputPr_(varnames)
+{
+    setNeuralNetworks(path_main_model, path_secondary_model);
+}
+#endif
 
+#if __cplusplus >= 201703L
 void NNPWS::setNeuralNetworks(const std::string& path_main_model,
                               const std::optional<const std::string>& path_secondary_model)
 {
@@ -51,6 +78,31 @@ void NNPWS::setNeuralNetworks(const std::string& path_main_model,
 
     throw std::runtime_error("provide .json model paths for single calls");
 }
+#else
+void NNPWS::setNeuralNetworks(const std::string& path_main_model,
+                              const std::string& path_secondary_model)
+{
+    // JSON is the default for FastInference
+    if (ends_with(path_main_model, ".json")) {
+        fast_engine_.load_from_json_file(path_main_model, {1,2,3,4,5});
+        is_initialized_ = true;
+        path_main_model_ = path_main_model;
+
+        if (inputPr_ == PH) {
+            if (!path_secondary_model.compare(""))
+                throw std::runtime_error("PH requires secondary model JSON");
+            if (!ends_with(path_secondary_model, ".json"))
+                throw std::runtime_error("PH secondary must be .json");
+
+            fast_engine_backward_.load_secondary_from_json_file(path_secondary_model);
+            path_secondary_model_ = path_secondary_model;
+        }
+        return;
+    }
+
+    throw std::runtime_error("provide .json model paths for single calls");
+}
+#endif
 
 void NNPWS::setPT(double p, double T) {
     if (p_ != p || T_ != T || !valid_) {
